@@ -4,24 +4,37 @@
     "height_cm": 181,
     "waist_cm": 101,
     "start_weight_kg": 120,
-    "target_bf_pct": 15
+    "target_bf_pct": 15,
+    "bf_pct_manual": 28
   },
   "volume_landmarks": {
-    "Push": {
-      "mev": 16,
-      "mrv": 24
-    },
-    "Pull": {
-      "mev": 16,
-      "mrv": 24
-    },
-    "Upper": {
-      "mev": 32,
-      "mrv": 48
-    },
-    "Lower": {
-      "mev": 16,
-      "mrv": 24
-    }
+    "Push":  { "mev": 40, "mav": 70,  "mrv": 100 },
+    "Pull":  { "mev": 40, "mav": 70,  "mrv": 100 },
+    "Upper": { "mev": 80, "mav": 140, "mrv": 200 },
+    "Lower": { "mev": 25, "mav": 45,  "mrv": 70  }
+  },
+  "muscle_landmarks": {
+    "Chest":       { "mev": 10, "mrv": 25 },
+    "Quads":       { "mev":  8, "mrv": 18 },
+    "Upper Back":  { "mev": 10, "mrv": 28 },
+    "Glutes":      { "mev":  8, "mrv": 18 },
+    "Lats":        { "mev": 10, "mrv": 28 },
+    "Hamstrings":  { "mev":  6, "mrv": 15 },
+    "Biceps":      { "mev":  8, "mrv": 24 },
+    "Triceps":     { "mev":  8, "mrv": 22 },
+    "Front Delts": { "mev":  6, "mrv": 18 },
+    "Side Delts":  { "mev": 10, "mrv": 22 },
+    "Lower Back":  { "mev":  4, "mrv": 10 },
+    "Abs":         { "mev":  6, "mrv": 16 },
+    "Calves":      { "mev":  8, "mrv": 18 },
+    "Upper Traps": { "mev":  6, "mrv": 18 },
+    "Rear Delts":  { "mev":  8, "mrv": 22 },
+    "Forearms":    { "mev":  5, "mrv": 14 },
+    "Obliques":    { "mev":  4, "mrv": 12 },
+    "Abductors":   { "mev":  3, "mrv":  8 },
+    "Adductors":   { "mev":  5, "mrv": 14 },
+    "Neck":        { "mev":  2, "mrv":  6 },
+    "Tibialis":    { "mev":  2, "mrv":  6 },
+    "Serratus":    { "mev":  2, "mrv":  6 }
   }
 }

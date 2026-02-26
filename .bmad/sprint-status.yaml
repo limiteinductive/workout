@@ -61,18 +61,21 @@ sprints:
       - story_id: "STORY-205"
         title: "Push/Pull/Upper/Lower Indexes + Balance Score"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-206"
         title: "22-Muscle Volume Heatmap"
         points: 3
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-208"
         title: "RIR Trends + Volume Spike + Cardio"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
 
   - sprint_number: 4
     start_date: "2026-03-19"
@@ -86,27 +89,107 @@ sprints:
       - story_id: "STORY-207"
         title: "Per-Exercise Progressive Overload Tracker"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-209"
         title: "Nutrition Adherence + Correlation Flags"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-210"
         title: "Coach Brief Card + Coach/Athlete Toggle"
         points: 5
-        status: "not_started"
+        status: "cancelled"
         assigned_to: null
+        notes: "Coach view removed by design decision; brief card not needed"
+
+  - sprint_number: 5
+    start_date: "2026-02-26"
+    end_date: "2026-03-04"
+    capacity_points: 31
+    committed_points: 31
+    completed_points: 31
+    status: "completed"
+    goal: "Transform dashboard into self-documenting precision analytics tool — every metric explained, every trend color-coded, every chart readable at a glance"
+    sprint_plan_path: "docs/sprint-plan-workout-v2-ux-2026-02-26.md"
+    stories:
+      - story_id: "STORY-301"
+        title: "Typography & Visual Foundation"
+        points: 5
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-302"
+        title: "Context Layer — Self-Documenting UI"
+        points: 5
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-303"
+        title: "Hero Cards — Color-Coded Intelligence"
+        points: 5
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-304"
+        title: "Chart Polish & Annotations"
+        points: 5
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-305"
+        title: "Training Detail Enhancements"
+        points: 5
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-306"
+        title: "Micro-interactions & Motion"
+        points: 3
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-307"
+        title: "Heatmap Visual Upgrade"
+        points: 3
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+
+  - sprint_number: 6
+    start_date: "2026-02-26"
+    end_date: "2026-03-04"
+    capacity_points: 11
+    committed_points: 11
+    completed_points: 0
+    status: "not_started"
+    goal: "Surface strengthlevel.com tier rankings per exercise + relative strength (÷BW) mode on PO chart"
+    sprint_plan_path: "docs/sprint-plan-workout-v2-strength-2026-02-26.md"
+    stories:
+      - story_id: "STORY-401"
+        title: "Strength Standards Engine + Training Tab Section"
+        points: 8
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
+      - story_id: "STORY-402"
+        title: "Relative Strength Mode on PO Chart"
+        points: 3
+        status: "completed"
+        assigned_to: null
+        completed_date: "2026-02-26"
 
 velocity:
   sprint_1: null
   sprint_2: null
   sprint_3: null
   sprint_4: null
+  sprint_5: null
   rolling_average: null
 
 team:
   size: 1
   sprint_length_weeks: 1
-  capacity_per_sprint: 15
+  capacity_per_sprint: 31

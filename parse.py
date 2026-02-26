@@ -41,13 +41,28 @@ DEFAULT_CONFIG = {
         "start_weight_kg": 120,
         "target_bf_pct": 15,
     },
+    # MPS landmarks: calibrated for MF fractional-attribution set counting
+    # (compound movements attribute fractional sets to multiple muscles, so weekly
+    #  group totals are higher than per-muscle counts in the literature)
     "volume_landmarks": {
-        "Push":  {"mev": 16, "mrv": 24},
-        "Pull":  {"mev": 16, "mrv": 24},
-        "Upper": {"mev": 32, "mrv": 48},
-        "Lower": {"mev": 16, "mrv": 24},
+        "Push":  {"mev": 40, "mav": 70,  "mrv": 100},
+        "Pull":  {"mev": 40, "mav": 70,  "mrv": 100},
+        "Upper": {"mev": 80, "mav": 140, "mrv": 200},
+        "Lower": {"mev": 25, "mav": 45,  "mrv": 70},
     },
 }
+
+# ── MPS (Muscle Performance Set) scale ───────────────────────────────────────
+# A quality-weighted set count based on proximity to failure and set type.
+# Drop Set = first heavy leg (failure); Drop = continuation leg after weight drop.
+
+MPS_BY_RIR = {0: 1.0, 1: 0.9, 2: 0.75, 3: 0.5, 4: 0.3}
+
+# Muscle groups by movement pattern (for Push/Pull/Upper/Lower indexes)
+PUSH_MUSCLES  = {"Chest", "Triceps", "Front Delts", "Side Delts"}
+PULL_MUSCLES  = {"Upper Back", "Lats", "Biceps", "Rear Delts"}
+UPPER_MUSCLES = PUSH_MUSCLES | PULL_MUSCLES
+LOWER_MUSCLES = {"Quads", "Hamstrings", "Glutes", "Calves", "Adductors", "Abductors", "Lower Back"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -328,6 +343,7 @@ def compute_body_comp(weight_series: list, config: dict) -> list:
     age = athlete["age"]
     height_m = athlete["height_cm"] / 100.0
     waist_in = athlete["waist_cm"] / 2.54
+    bf_manual = athlete.get("bf_pct_manual")  # optional visual/caliper override
 
     result = []
     for entry in weight_series:
@@ -345,7 +361,12 @@ def compute_body_comp(weight_series: list, config: dict) -> list:
         deur_bf = (1.20 * bmi) + (0.23 * age) - 10.8 - 5.4
 
         avg_bf = (ymca_bf + deur_bf) / 2.0
-        lean_kg = trend_kg * (1.0 - avg_bf / 100.0)
+
+        # If manual BF% set in config, use it as primary (natural waist ≠ navel measurement
+        # that formulas require; visual estimate beats formula with wrong input)
+        primary_bf = float(bf_manual) if bf_manual is not None else ymca_bf
+
+        lean_kg = trend_kg * (1.0 - primary_bf / 100.0)
         ffmi = lean_kg / (height_m ** 2)
 
         result.append({
@@ -353,7 +374,8 @@ def compute_body_comp(weight_series: list, config: dict) -> list:
             "trend_kg": round(trend_kg, 2),
             "ymca_bf_pct": round(ymca_bf, 1),
             "deurenberg_bf_pct": round(deur_bf, 1),
-            "estimated_bf_pct": round(avg_bf, 1),
+            "estimated_bf_pct": round(primary_bf, 1),
+            "avg_bf_pct": round(avg_bf, 1),
             "lean_kg": round(lean_kg, 1),
             "ffmi": round(ffmi, 2),
         })
@@ -469,6 +491,132 @@ def compute_cut(body_comp: list, mf_daily_list: list, config: dict) -> dict:
     }
 
 
+def set_mps(s: dict) -> float:
+    """Return MPS weight for a single set based on set_type and RIR."""
+    st = s.get("set_type", "")
+    rir = s.get("rir")
+    if st == "Drop":          return 0.2   # continuation leg after weight drop
+    if st in ("Failure Set", "Drop Set"): return 1.0
+    if rir is None:           return 0.75  # unknown effort — conservative
+    return MPS_BY_RIR.get(rir, 0.1)        # RIR 5+ → warm-up territory
+
+
+def compute_mps_by_date(workouts: dict) -> dict:
+    """Per-day average MPS multiplier derived from Workout Log set quality."""
+    result = {}
+    for date, workout in workouts.items():
+        sets = workout.get("sets", [])
+        if not sets:
+            result[date] = 1.0
+            continue
+        total_mps  = sum(set_mps(s) for s in sets)
+        total_sets = len(sets)
+        result[date] = round(total_mps / total_sets, 3) if total_sets else 1.0
+    return result
+
+
+def get_iso_week(date_str: str) -> tuple[str, str]:
+    """Return (ISO-week label e.g. '2026-W07', monday date string)."""
+    d = date_cls.fromisoformat(date_str)
+    year, week, _ = d.isocalendar()
+    monday = d - timedelta(days=d.weekday())
+    return f"{year}-W{week:02d}", monday.strftime("%Y-%m-%d")
+
+
+def _zone(value: float, lm: dict) -> str:
+    mev = lm.get("mev", 0)
+    mav = lm.get("mav", (mev + lm.get("mrv", 9999)) / 2)
+    mrv = lm.get("mrv", 9999)
+    if value < mev:  return "below"
+    if value < mav:  return "ok"
+    if value <= mrv: return "high"
+    return "over"
+
+
+def compute_push_pull_weekly(muscle_sets: dict, mps_by_date: dict, config: dict) -> list:
+    """Aggregate MPS-weighted sets per ISO week into Push/Pull/Upper/Lower totals."""
+    lm = config.get("volume_landmarks", {})
+    by_week: dict[str, dict] = {}
+
+    for date in sorted(muscle_sets):
+        entry  = muscle_sets[date]
+        mult   = mps_by_date.get(date, 1.0)
+        wk, ws = get_iso_week(date)
+        if wk not in by_week:
+            by_week[wk] = {"week": wk, "week_start": ws,
+                           "push_mps": 0.0, "pull_mps": 0.0,
+                           "upper_mps": 0.0, "lower_mps": 0.0,
+                           "push_raw": 0.0, "pull_raw": 0.0,
+                           "upper_raw": 0.0, "lower_raw": 0.0,
+                           "training_days": 0}
+        by_week[wk]["training_days"] += 1
+
+        for muscle in MUSCLE_GROUPS:
+            raw = entry.get(muscle) or 0.0
+            mps = raw * mult
+            if muscle in PUSH_MUSCLES:
+                by_week[wk]["push_raw"] += raw;  by_week[wk]["push_mps"]  += mps
+            if muscle in PULL_MUSCLES:
+                by_week[wk]["pull_raw"] += raw;  by_week[wk]["pull_mps"]  += mps
+            if muscle in UPPER_MUSCLES:
+                by_week[wk]["upper_raw"] += raw; by_week[wk]["upper_mps"] += mps
+            if muscle in LOWER_MUSCLES:
+                by_week[wk]["lower_raw"] += raw; by_week[wk]["lower_mps"] += mps
+
+    muscle_lm = config.get("muscle_landmarks", {})
+    # Per-muscle weekly MPS accumulator alongside group totals
+    for wk in by_week:
+        by_week[wk]["muscle_mps"]  = {m: 0.0 for m in MUSCLE_GROUPS}
+        by_week[wk]["muscle_raw"]  = {m: 0.0 for m in MUSCLE_GROUPS}
+
+    for date in sorted(muscle_sets):
+        entry  = muscle_sets[date]
+        mult   = mps_by_date.get(date, 1.0)
+        wk, _  = get_iso_week(date)
+        for muscle in MUSCLE_GROUPS:
+            raw = entry.get(muscle) or 0.0
+            by_week[wk]["muscle_mps"][muscle]  += raw * mult
+            by_week[wk]["muscle_raw"][muscle]  += raw
+
+    result = []
+    for wk in sorted(by_week):
+        w = by_week[wk]
+        push  = round(w["push_mps"],  1)
+        pull  = round(w["pull_mps"],  1)
+        upper = round(w["upper_mps"], 1)
+        lower = round(w["lower_mps"], 1)
+
+        muscles_out = {}
+        for muscle in MUSCLE_GROUPS:
+            mps = round(w["muscle_mps"][muscle], 1)
+            muscles_out[muscle] = {
+                "mps":  mps,
+                "raw":  round(w["muscle_raw"][muscle], 1),
+                "zone": _zone(mps, muscle_lm.get(muscle, {})),
+            }
+
+        result.append({
+            "week":            wk,
+            "week_start":      w["week_start"],
+            "training_days":   w["training_days"],
+            "push_mps":        push,
+            "pull_mps":        pull,
+            "upper_mps":       upper,
+            "lower_mps":       lower,
+            "push_raw":        round(w["push_raw"],  1),
+            "pull_raw":        round(w["pull_raw"],  1),
+            "upper_raw":       round(w["upper_raw"], 1),
+            "lower_raw":       round(w["lower_raw"], 1),
+            "push_pull_ratio": round(push / pull, 2) if pull > 0 else None,
+            "push_zone":       _zone(push,  lm.get("Push",  {})),
+            "pull_zone":       _zone(pull,  lm.get("Pull",  {})),
+            "upper_zone":      _zone(upper, lm.get("Upper", {})),
+            "lower_zone":      _zone(lower, lm.get("Lower", {})),
+            "muscles":         muscles_out,
+        })
+    return result
+
+
 def build_weight_series(mf_daily: dict, hc_weight: list) -> list:
     """
     Unified weight series: MF trend weight preferred; HC raw weight as fallback.
@@ -506,6 +654,10 @@ def build_output(mf: dict, hc: dict, config: dict) -> dict:
 
     cut = compute_cut(body_comp, mf_daily_list, config)
 
+    workouts_dict = mf["workouts"]
+    mps_by_date   = compute_mps_by_date(workouts_dict)
+    push_pull_weekly = compute_push_pull_weekly(mf["muscle_sets"], mps_by_date, config)
+
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "config": config,
@@ -514,7 +666,8 @@ def build_output(mf: dict, hc: dict, config: dict) -> dict:
         "mf_daily": mf_daily_list,
         "muscle_sets": [mf["muscle_sets"][d] for d in sorted(mf["muscle_sets"])],
         "muscle_volume": [mf["muscle_volume"][d] for d in sorted(mf["muscle_volume"])],
-        "workouts": [mf["workouts"][d] for d in sorted(mf["workouts"])],
+        "workouts": [workouts_dict[d] for d in sorted(workouts_dict)],
+        "push_pull_weekly": push_pull_weekly,
         "weight": weight_series,
         "body_comp": body_comp,
         "hc_body_fat": hc["hc_body_fat"],
@@ -550,10 +703,11 @@ def main():
     size_kb = OUT_PATH.stat().st_size / 1024
     s = data.get("summary", {})
     print(f"\n✓ {OUT_PATH}  ({size_kb:.1f} KB)")
-    print(f"  mf_daily       : {len(data['mf_daily'])} days")
-    print(f"  muscle_sets    : {len(data['muscle_sets'])} days")
-    print(f"  muscle_volume  : {len(data['muscle_volume'])} days")
-    print(f"  workouts       : {len(data['workouts'])} days")
+    print(f"  mf_daily         : {len(data['mf_daily'])} days")
+    print(f"  muscle_sets      : {len(data['muscle_sets'])} days")
+    print(f"  muscle_volume    : {len(data['muscle_volume'])} days")
+    print(f"  workouts         : {len(data['workouts'])} days")
+    print(f"  push_pull_weekly : {len(data['push_pull_weekly'])} weeks")
     print(f"  body_comp      : {len(data['body_comp'])} entries")
     print(f"  weight         : {len(data['weight'])} entries")
     print(f"  hc_body_fat    : {len(data['hc_body_fat'])} entries")

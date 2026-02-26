@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workout Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -14,58 +16,208 @@
         <h1>Workout Dashboard</h1>
         <p id="last-updated"></p>
       </div>
-      <div class="view-toggle">
-        <button class="toggle-btn active" data-view="coach">Coach</button>
-        <button class="toggle-btn" data-view="athlete">Athlete</button>
-      </div>
     </div>
   </header>
 
-  <!-- ── COACH VIEW ──────────────────────────────────────────────── -->
-  <div id="view-coach" class="view active">
-    <div id="coach-brief">
-      <!-- Populated by STORY-210 -->
-      <div class="brief-placeholder">
-        <div class="cards">
-          <div class="card">
-            <div class="card-label">Trend Weight</div>
-            <div class="card-value" id="cb-weight">—</div>
-            <div class="card-sub" id="cb-weight-delta"></div>
-          </div>
-          <div class="card">
-            <div class="card-label">Lean Mass</div>
-            <div class="card-value" id="cb-lean">—</div>
-            <div class="card-sub" id="cb-lean-trend"></div>
-          </div>
-          <div class="card">
-            <div class="card-label">BF% (estimated)</div>
-            <div class="card-value" id="cb-bf">—</div>
-            <div class="card-sub">YMCA + Deurenberg avg</div>
-          </div>
-          <div class="card">
-            <div class="card-label">FFMI</div>
-            <div class="card-value" id="cb-ffmi">—</div>
-            <div class="card-sub" id="cb-ffmi-ref"></div>
-          </div>
-        </div>
-        <p class="coach-note">Full Coach Brief card — Sprint 4 (STORY-210)</p>
-      </div>
-    </div>
-  </div>
-
   <!-- ── ATHLETE VIEW ────────────────────────────────────────────── -->
-  <div id="view-athlete" class="view">
+  <div id="view-athlete">
     <nav>
-      <button class="tab active" data-tab="body-comp">Body Comp</button>
-      <button class="tab" data-tab="volume">Volume</button>
+      <button class="tab active" data-tab="volume">Volume</button>
       <button class="tab" data-tab="training">Training</button>
+      <button class="tab" data-tab="strength">Strength</button>
       <button class="tab" data-tab="nutrition">Nutrition</button>
+      <button class="tab" data-tab="body-comp">Body Comp</button>
     </nav>
 
     <main>
 
+      <!-- VOLUME ─────────────────────────────────────────────────── -->
+      <section id="volume" class="tab-content active">
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-label" data-tip="MPS = quality-weighted sets. RIR 0/failure = 1.0, RIR 2 = 0.75, RIR 4 = 0.3. Measures training stimulus, not raw set count.">Push MPS</div>
+            <div class="card-value" id="vol-push-mps">—</div>
+            <div class="card-sub" id="vol-push-zone"></div>
+            <div class="card-bar"><div class="card-bar-fill" id="vol-push-fill" style="width:0%"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="MPS = quality-weighted sets. RIR 0/failure = 1.0, RIR 2 = 0.75, RIR 4 = 0.3. Measures training stimulus, not raw set count.">Pull MPS</div>
+            <div class="card-value" id="vol-pull-mps">—</div>
+            <div class="card-sub" id="vol-pull-zone"></div>
+            <div class="card-bar"><div class="card-bar-fill" id="vol-pull-fill" style="width:0%"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="Push÷Pull ratio. Balanced = 0.87–1.15. Outside that range risks shoulder imbalances over time.">Push : Pull</div>
+            <div class="card-value" id="vol-balance">—</div>
+            <div class="card-sub" id="vol-balance-label"></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="MPS = quality-weighted sets. RIR 0/failure = 1.0, RIR 2 = 0.75, RIR 4 = 0.3. Measures training stimulus, not raw set count.">Lower MPS</div>
+            <div class="card-value" id="vol-lower-mps">—</div>
+            <div class="card-sub" id="vol-lower-zone"></div>
+            <div class="card-bar"><div class="card-bar-fill" id="vol-lower-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Push vs Pull <span style="font-weight:400;color:var(--muted)">(weekly MPS)</span></h2>
+          <canvas id="vol-push-pull-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent)"></span> Push &nbsp;
+            <span class="legend-dot" style="background:var(--accent2)"></span> Pull &nbsp;
+            <span class="ref-line" style="background:var(--zone-ok)"></span> <span data-tip="Minimum Effective Volume — below this, stimulus is too low for adaptation">MEV</span> &nbsp;
+            <span class="ref-line" style="background:var(--zone-high)"></span> <span data-tip="Maximum Adaptive Volume — sweet spot for growth">MAV</span> &nbsp;
+            <span class="ref-line" style="background:var(--zone-over)"></span> <span data-tip="Maximum Recoverable Volume — above this, recovery is compromised">MRV</span>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Upper vs Lower <span style="font-weight:400;color:var(--muted)">(weekly MPS)</span></h2>
+          <canvas id="vol-upper-lower-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:#c084fc"></span> Upper &nbsp;
+            <span class="legend-dot" style="background:var(--green)"></span> Lower
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Muscle Volume Heatmap <span id="hm-week-label" style="font-weight:400;color:var(--muted)"></span></h2>
+          <div class="hm-legend">
+            <span class="hm-pip zone-below"></span> Below MEV &nbsp;
+            <span class="hm-pip zone-ok"></span> MEV→MRV &nbsp;
+            <span class="hm-pip zone-high"></span> MAV→MRV &nbsp;
+            <span class="hm-pip zone-over"></span> Over MRV
+          </div>
+          <div id="hm-grid" class="hm-grid"></div>
+        </div>
+
+      </section>
+
+      <!-- TRAINING ───────────────────────────────────────────────── -->
+      <section id="training" class="tab-content">
+
+        <div class="chart-box">
+          <h2>Avg <span data-tip="Reps in Reserve — how many reps left before failure. RIR 0 = went to failure. Lower = harder effort.">RIR</span> per Session <span style="font-weight:400;color:var(--muted)">(lower = harder)</span></h2>
+          <canvas id="rir-trend-chart"></canvas>
+        </div>
+
+        <div class="chart-box">
+          <h2>Sets per Session</h2>
+          <canvas id="session-vol-chart"></canvas>
+        </div>
+
+        <div class="chart-box" style="margin-bottom:0.75rem">
+          <h2>All-time PRs <span style="font-weight:400;color:var(--muted)">(top exercises by volume)</span></h2>
+          <div id="pr-list"></div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Recent Sessions</h2>
+          <div id="workout-list"></div>
+        </div>
+
+      </section>
+
+      <!-- STRENGTH ───────────────────────────────────────────────── -->
+      <section id="strength" class="tab-content">
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-label" data-tip="Best estimated 1RM for push exercises (bench, incline, shoulder press, dips) — last 30 days vs prior period.">Push e1RM</div>
+            <div class="card-value" id="str-push-val">—</div>
+            <div class="card-sub" id="str-push-sub"></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="Best estimated 1RM for pull exercises (lat pulldown, pull-ups) — last 30 days vs prior period.">Pull e1RM</div>
+            <div class="card-value" id="str-pull-val">—</div>
+            <div class="card-sub" id="str-pull-sub"></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="Best estimated 1RM for lower body (Romanian deadlift, squat) — last 30 days vs prior period.">Lower e1RM</div>
+            <div class="card-value" id="str-lower-val">—</div>
+            <div class="card-sub" id="str-lower-sub"></div>
+          </div>
+          <div class="card">
+            <div class="card-label" data-tip="Sum of best Push + Pull + Lower e1RM — composite strength index vs prior period.">Strength Score</div>
+            <div class="card-value" id="str-total-val">—</div>
+            <div class="card-sub" id="str-total-sub"></div>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <div class="po-header-row">
+            <h2>Progressive Overload</h2>
+            <span id="po-trend-badge" class="pill" style="margin-left:0.5rem"></span>
+            <button id="po-rel-toggle" class="range-btn" style="margin-left:auto" data-tip="Switch y-axis to e1RM ÷ bodyweight ratio (×BW)">÷ BW</button>
+          </div>
+          <div class="ex-picker">
+            <div class="ex-cat-row" id="po-cat-row"></div>
+            <div class="ex-list" id="po-exercise-list"></div>
+          </div>
+          <canvas id="po-chart"></canvas>
+          <div id="po-stats" class="po-stats"></div>
+        </div>
+
+        <div class="chart-box" id="strength-standards-box">
+          <h2>Strength Standards <span style="font-weight:400;color:var(--muted);font-size:0.78rem">strengthlevel.com · BW-interpolated</span></h2>
+          <div id="strength-standards-list"></div>
+        </div>
+
+      </section>
+
+      <!-- NUTRITION ──────────────────────────────────────────────── -->
+      <section id="nutrition" class="tab-content">
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-label">Protein 7d avg</div>
+            <div class="card-value" id="nut-protein-avg">—</div>
+            <div class="card-sub" id="nut-protein-vs-target"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Protein / lean kg</div>
+            <div class="card-value" id="nut-protein-per-kg">—</div>
+            <div class="card-sub" id="nut-protein-trend"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Calories 7d avg</div>
+            <div class="card-value" id="nut-kcal-avg">—</div>
+            <div class="card-sub" id="nut-kcal-vs-target"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Avg deficit 7d</div>
+            <div class="card-value" id="nut-deficit-avg">—</div>
+            <div class="card-sub" id="nut-deficit-trend"></div>
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Protein vs Target (g/day)</h2>
+          <div class="range-btns">
+            <button class="range-btn active" data-nut-range="30">30d</button>
+            <button class="range-btn" data-nut-range="0">All</button>
+          </div>
+          <canvas id="nut-protein-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent2)"></span> Protein &nbsp;
+            <span class="ref-line" style="background:var(--accent)"></span> Target
+          </div>
+        </div>
+
+        <div class="chart-box">
+          <h2>Calories vs Target (kcal/day)</h2>
+          <canvas id="nut-kcal-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent)"></span> Calories &nbsp;
+            <span class="ref-line" style="background:#ff9944"></span> Target
+          </div>
+        </div>
+
+      </section>
+
       <!-- BODY COMP ──────────────────────────────────────────────── -->
-      <section id="body-comp" class="tab-content active">
+      <section id="body-comp" class="tab-content">
 
         <div class="cards">
           <div class="card">
@@ -79,12 +231,12 @@
             <div class="card-sub" id="bc-lean-trend"></div>
           </div>
           <div class="card">
-            <div class="card-label">BF% (estimated)</div>
+            <div class="card-label">BF%</div>
             <div class="card-value" id="bc-bf">—</div>
-            <div class="card-sub">YMCA + Deurenberg avg</div>
+            <div class="card-sub" id="bc-bf-method">visual estimate</div>
           </div>
           <div class="card">
-            <div class="card-label">FFMI</div>
+            <div class="card-label" data-tip="Fat-Free Mass Index = lean kg ÷ height². Natural limits: 22 avg, 25 advanced, 28 elite (lifetime drug-free). Above 25 is genuinely exceptional.">FFMI</div>
             <div class="card-value" id="bc-ffmi">—</div>
             <div class="card-sub" id="bc-ffmi-ref"></div>
           </div>
@@ -115,16 +267,6 @@
           </div>
         </div>
 
-        <div class="chart-box">
-          <h2>BF% Estimates</h2>
-          <canvas id="bc-bf-chart"></canvas>
-          <div class="chart-legend">
-            <span class="legend-dot" style="background:var(--accent)"></span> YMCA &nbsp;
-            <span class="legend-dot" style="background:var(--accent2)"></span> Deurenberg &nbsp;
-            <span class="legend-dot" style="background:#888"></span> Scale (unreliable)
-          </div>
-        </div>
-
         <!-- Cut Progress -->
         <div class="chart-box" id="cut-progress-box">
           <h2>Cut Progress</h2>
@@ -147,7 +289,7 @@
 
         <!-- TDEE vs Calories -->
         <div class="chart-box">
-          <h2>TDEE vs Calories</h2>
+          <h2><span data-tip="Total Daily Energy Expenditure — estimated calories your body burns. Deficit = TDEE minus calories eaten.">TDEE</span> vs Calories</h2>
           <div class="range-btns">
             <button class="range-btn active" data-tdee-range="30">30d</button>
             <button class="range-btn" data-tdee-range="0">All</button>
@@ -165,36 +307,17 @@
           <canvas id="deficit-chart"></canvas>
         </div>
 
-      </section>
-
-      <!-- VOLUME ─────────────────────────────────────────────────── -->
-      <section id="volume" class="tab-content">
-        <div class="placeholder-section">
-          <div class="placeholder-icon">📊</div>
-          <div class="placeholder-title">Volume Intelligence</div>
-          <div class="placeholder-body">Push / Pull / Upper / Lower indexes, 22-muscle heatmap, balance score</div>
-          <div class="placeholder-sprint">Sprint 3 · STORY-205, 206</div>
+        <!-- BF% Estimates — reference only -->
+        <div class="chart-box">
+          <h2>BF% Estimates <span style="font-weight:400;color:var(--muted)">(reference only)</span></h2>
+          <canvas id="bc-bf-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent)"></span> YMCA &nbsp;
+            <span class="legend-dot" style="background:var(--accent2)"></span> Deurenberg &nbsp;
+            <span class="legend-dot" style="background:#888"></span> Scale (unreliable)
+          </div>
         </div>
-      </section>
 
-      <!-- TRAINING ───────────────────────────────────────────────── -->
-      <section id="training" class="tab-content">
-        <div class="placeholder-section">
-          <div class="placeholder-icon">🏋️</div>
-          <div class="placeholder-title">Progressive Overload</div>
-          <div class="placeholder-body">Per-exercise weight trends, PRs, stalls, RIR, volume spikes, cardio</div>
-          <div class="placeholder-sprint">Sprint 3–4 · STORY-207, 208</div>
-        </div>
-      </section>
-
-      <!-- NUTRITION ──────────────────────────────────────────────── -->
-      <section id="nutrition" class="tab-content">
-        <div class="placeholder-section">
-          <div class="placeholder-icon">🥗</div>
-          <div class="placeholder-title">Nutrition Adherence</div>
-          <div class="placeholder-body">Protein &amp; calorie adherence vs MF targets, TDEE, energy balance</div>
-          <div class="placeholder-sprint">Sprint 4 · STORY-204, 209</div>
-        </div>
       </section>
 
     </main>
