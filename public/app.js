@@ -1684,6 +1684,8 @@ function computeStrengthSeries() {
     for (const [ex, entries] of Object.entries(_exMap)) {
       const exLower = ex.toLowerCase();
       if (!patterns.some(p => exLower.includes(p))) continue;
+      // Skip eGym — machine resistance scale ≠ real loading
+      if (classifyEquipment(ex) === "egym") continue;
       const c = _exCred[ex];
       const oFlags = c ? c.outliers : entries.map(() => false);
       for (let i = 0; i < entries.length; i++) {
@@ -1719,11 +1721,13 @@ function computeStrengthSeries() {
     }
 
     const current = values.length ? values[values.length - 1] : null;
-    // Delta: compare last 4 weeks vs 4 weeks before that
-    const recent = values.length >= 2 ? values[values.length - 1] : null;
-    const prev = values.length >= 5 ? values[values.length - 5] : (values.length >= 2 ? values[0] : null);
-    const delta = recent != null && prev != null ? round1(recent - prev) : null;
-    const pct = delta != null && prev ? round1(delta / prev * 100) : null;
+    // Delta: best of last 4 weeks vs best of prior 4 weeks
+    const recentSlice = values.slice(-4);
+    const prevSlice = values.slice(-8, -4);
+    const recentBest = recentSlice.length ? Math.max(...recentSlice) : null;
+    const prevBest = prevSlice.length ? Math.max(...prevSlice) : null;
+    const delta = recentBest != null && prevBest != null ? round1(recentBest - prevBest) : null;
+    const pct = delta != null && prevBest ? round1(delta / prevBest * 100) : null;
 
     series[cat] = { labels, values, current, delta, pct };
   }
@@ -1744,10 +1748,12 @@ function computeStrengthSeries() {
     totalLabels.push(i < series.push.labels.length ? series.push.labels[i] : "");
   }
   const totalCurrent = totalValues.length ? totalValues[totalValues.length - 1] : null;
-  const totalRecent = totalValues.length >= 2 ? totalValues[totalValues.length - 1] : null;
-  const totalPrev = totalValues.length >= 5 ? totalValues[totalValues.length - 5] : (totalValues.length >= 2 ? totalValues[0] : null);
-  const totalDelta = totalRecent != null && totalPrev != null ? Math.round(totalRecent - totalPrev) : null;
-  const totalPct = totalDelta != null && totalPrev ? round1(totalDelta / totalPrev * 100) : null;
+  const totalRecentSlice = totalValues.slice(-4);
+  const totalPrevSlice = totalValues.slice(-8, -4);
+  const totalRecentBest = totalRecentSlice.length ? Math.max(...totalRecentSlice) : null;
+  const totalPrevBest = totalPrevSlice.length ? Math.max(...totalPrevSlice) : null;
+  const totalDelta = totalRecentBest != null && totalPrevBest != null ? Math.round(totalRecentBest - totalPrevBest) : null;
+  const totalPct = totalDelta != null && totalPrevBest ? round1(totalDelta / totalPrevBest * 100) : null;
   series.total = { labels: totalLabels, values: totalValues, current: totalCurrent, delta: totalDelta, pct: totalPct };
 
   return series;
