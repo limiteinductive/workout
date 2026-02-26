@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workout Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Workout Dashboard</h1>
+    <p id="last-updated"></p>
+  </header>
+
+  <nav>
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="workouts">Workouts</button>
+    <button class="tab" data-tab="nutrition">Nutrition</button>
+  </nav>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section id="overview" class="tab-content active">
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Weight</div>
+          <div class="card-value" id="current-weight">—</div>
+          <div class="card-sub" id="weight-change"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Body Fat</div>
+          <div class="card-value" id="current-bf">—</div>
+          <div class="card-sub" id="bf-date"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Today's Calories</div>
+          <div class="card-value" id="today-kcal">—</div>
+          <div class="card-sub" id="today-protein"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Last Workout</div>
+          <div class="card-value" id="last-workout-title">—</div>
+          <div class="card-sub" id="last-workout-date"></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <h2>Weight (last 90 days)</h2>
+        <canvas id="weight-chart-overview"></canvas>
+      </div>
+    </section>
+
+    <!-- WORKOUTS -->
+    <section id="workouts" class="tab-content">
+      <div class="chart-box">
+        <h2>Weight Trend</h2>
+        <div class="range-btns">
+          <button class="range-btn active" data-range="30">30d</button>
+          <button class="range-btn" data-range="90">90d</button>
+          <button class="range-btn" data-range="0">All</button>
+        </div>
+        <canvas id="weight-chart-full"></canvas>
+      </div>
+
+      <div class="chart-box">
+        <h2>Body Fat %</h2>
+        <canvas id="bf-chart"></canvas>
+      </div>
+
+      <h2 style="margin: 1.5rem 0 0.5rem">Session Log</h2>
+      <div id="workout-list"></div>
+    </section>
+
+    <!-- NUTRITION -->
+    <section id="nutrition" class="tab-content">
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Calories</div>
+          <div class="card-value" id="n-kcal">—</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Protein</div>
+          <div class="card-value" id="n-protein">—</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Carbs</div>
+          <div class="card-value" id="n-carbs">—</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Fat</div>
+          <div class="card-value" id="n-fat">—</div>
+        </div>
+      </div>
+      <div class="card-sub" id="n-date" style="text-align:center;margin-bottom:1rem"></div>
+
+      <div class="chart-box">
+        <h2>Daily Calories (last 30 days)</h2>
+        <canvas id="kcal-chart"></canvas>
+      </div>
+
+      <div class="chart-box">
+        <h2>Daily Protein (last 30 days)</h2>
+        <canvas id="protein-chart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
