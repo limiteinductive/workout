@@ -38,7 +38,7 @@ workflow_status:
   # Phase 2: Planning (Required - choose one based on project level)
   - name: prd
     phase: 2
-    status: "recommended"  # recommended for level 1
+    status: "docs/prd-workout-v2-2026-02-26.md"
     description: "Product Requirements Document"
 
   - name: tech-spec
