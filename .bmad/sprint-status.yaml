@@ -1,0 +1,108 @@
+version: "6.0.0"
+project_name: "workout-v2"
+project_level: 2
+current_sprint: 1
+sprint_plan_path: "docs/sprint-plan-workout-v2-2026-02-26.md"
+
+sprints:
+  - sprint_number: 1
+    start_date: "2026-02-26"
+    end_date: "2026-03-04"
+    capacity_points: 15
+    committed_points: 11
+    completed_points: 0
+    status: "not_started"
+    goal: "Complete data pipeline v2 — parser reads all MacroFactor exports, merges with Health Connect, produces enriched data.json"
+    stories:
+      - story_id: "STORY-201"
+        title: "MacroFactor XLSX Reader + Athlete Config"
+        points: 8
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-202"
+        title: "Health Connect Integration + update.sh v2"
+        points: 3
+        status: "not_started"
+        assigned_to: null
+
+  - sprint_number: 2
+    start_date: "2026-03-05"
+    end_date: "2026-03-11"
+    capacity_points: 15
+    committed_points: 10
+    completed_points: 0
+    status: "not_started"
+    goal: "Body composition intelligence — BF% estimates, lean mass, cut progress, TDEE live in dashboard"
+    stories:
+      - story_id: "STORY-203"
+        title: "BF% Estimation + Lean Mass + FFMI Dashboard"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-204"
+        title: "Cut Progress Tracker + TDEE Energy Balance"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+
+  - sprint_number: 3
+    start_date: "2026-03-12"
+    end_date: "2026-03-18"
+    capacity_points: 15
+    committed_points: 13
+    completed_points: 0
+    status: "not_started"
+    goal: "Training volume intelligence — Push/Pull/Upper/Lower indexes, heatmap, RIR, volume spikes, cardio"
+    stories:
+      - story_id: "STORY-205"
+        title: "Push/Pull/Upper/Lower Indexes + Balance Score"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-206"
+        title: "22-Muscle Volume Heatmap"
+        points: 3
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-208"
+        title: "RIR Trends + Volume Spike + Cardio"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+
+  - sprint_number: 4
+    start_date: "2026-03-19"
+    end_date: "2026-03-25"
+    capacity_points: 15
+    committed_points: 15
+    completed_points: 0
+    status: "not_started"
+    goal: "Progressive overload tracking, nutrition adherence, Coach Brief card — complete coaching intelligence platform"
+    stories:
+      - story_id: "STORY-207"
+        title: "Per-Exercise Progressive Overload Tracker"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-209"
+        title: "Nutrition Adherence + Correlation Flags"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-210"
+        title: "Coach Brief Card + Coach/Athlete Toggle"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+
+velocity:
+  sprint_1: null
+  sprint_2: null
+  sprint_3: null
+  sprint_4: null
+  rolling_average: null
+
+team:
+  size: 1
+  sprint_length_weeks: 1
+  capacity_per_sprint: 15
