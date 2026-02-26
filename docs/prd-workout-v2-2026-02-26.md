@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-26
 **Author:** trom
-**Version:** 1.0
+**Version:** 2.0
 **Project Type:** web-app
 **Project Level:** 2
 **Status:** Draft
@@ -11,7 +11,7 @@
 
 ## Document Overview
 
-This PRD defines requirements for the workout dashboard v2 — a hypertrophy-focused coaching intelligence tool built on top of the existing Health Connect export pipeline. It serves as the source of truth for what will be built.
+This PRD defines requirements for the workout dashboard v2 — a hypertrophy-focused coaching intelligence tool. **MacroFactor XLSX exports are the primary data source.** Health Connect SQLite is the secondary source for body metrics and cardio sessions.
 
 **Related Documents:**
 - Product Brief: `docs/product-brief-workout-v2-2026-02-26.md`
@@ -19,9 +19,46 @@ This PRD defines requirements for the workout dashboard v2 — a hypertrophy-foc
 
 ---
 
+## Data Source Architecture
+
+### Primary: MacroFactor XLSX Exports
+
+MacroFactor exports monthly XLSX files with 6 sheets each:
+
+| Sheet | Key Fields | Used For |
+|-------|-----------|----------|
+| **Quick Export** | Date, TDEE, Trend Weight, Weight, Calories, Protein, Fat, Carbs, Targets, Steps | Nutrition dashboard, weight trend, TDEE |
+| **Food Log** | Date, Time, Food Name, Calories, Protein, Fat, Carbs | Detailed food view |
+| **Muscle Groups - Sets** | Date + 22 muscle groups (sets/day) | Volume indexes, heatmap |
+| **Muscle Groups - Volume** | Date + 22 muscle groups (kg/day) | Volume load tracking |
+| **Workout Log** | Date, Workout, Exercise, Weight (kg), Reps, RIR, Set Type | Progressive overload, exercise tracking |
+| **Active Program** | Programme structure | Context only |
+
+**22 tracked muscle groups:** Chest, Quads, Upper Back, Glutes, Lats, Hamstrings, Biceps, Triceps, Front Delts, Side Delts, Lower Back, Abs, Calves, Upper Traps, Rear Delts, Forearms, Obliques, Abductors, Adductors, Neck, Tibialis, Serratus
+
+### Secondary: Health Connect SQLite
+
+| Table | Used For |
+|-------|----------|
+| `weight_record_table` | Raw scale weight (fallback if MF weight missing) |
+| `body_fat_record_table` | Scale BF% (unreliable, used for comparison only) |
+| `exercise_session_record_table` | Cardio/VO2 sessions, padel sessions |
+
+### Pipeline
+
+```
+MacroFactor monthly XLSX files  ──┐
+                                   ├── parse.py ──→ public/data.json ──→ Vercel
+Health Connect daily .db ──────────┘
+```
+
+Parser reads **all** XLSX files in `drive_export/workout/` and merges them chronologically. User adds new monthly exports to that folder.
+
+---
+
 ## Executive Summary
 
-Transform the existing workout dashboard from a raw data viewer into a coaching intelligence platform. V2 adds body composition estimation, synthetic training volume indexes (Push/Pull/Upper/Lower), progressive overload tracking, and a coach-optimized summary view — all data-driven from the existing Health Connect pipeline with zero new infrastructure.
+Transform the workout dashboard into a coaching intelligence platform using MacroFactor as the primary data source. V2 delivers: per-exercise progressive overload tracking with actual weights, pre-calculated muscle group volume across 22 muscle groups, TDEE-aware nutrition analysis, body composition estimation, and a coach-optimised summary view — all from a zero-infrastructure static site.
 
 ---
 
@@ -30,17 +67,18 @@ Transform the existing workout dashboard from a raw data viewer into a coaching 
 ### Business Objectives
 
 - Coach can assess Benjamin's full training status in <10 seconds from one URL
-- Benjamin reaches 15% BF while maximising lean mass retention during the cut
-- Overtraining, imbalances, and progressive overload stalls are detected before they cause harm
-- All insights derived automatically — zero manual reporting after daily DB export
+- Benjamin reaches 15% BF while maximising lean mass retention
+- Progressive overload stalls caught per exercise within 2 weeks
+- Overtraining and push/pull imbalances flagged automatically
+- Zero manual reporting — fully derived from MacroFactor + Health Connect exports
 
 ### Success Metrics
 
-- Coach can answer "how is training going this week?" in <10 seconds
-- Lean mass is stable or increasing as total weight drops
-- Push/Pull balance score stays within 80–120% range
-- BF% estimation within ±3% of any future DEXA measurement
-- Progressive overload stalls flagged within 2 weeks of onset
+- Coach answers "how is training going?" in <10 seconds
+- Lean mass stable or increasing while weight drops
+- Push/Pull balance within 80–120% range
+- Progressive overload visible per exercise over time
+- Nutrition adherence tracked against MF targets (not hardcoded)
 
 ---
 
@@ -48,60 +86,52 @@ Transform the existing workout dashboard from a raw data viewer into a coaching 
 
 ---
 
-### FR-001: BF% Estimation Engine
+### FR-001: MacroFactor XLSX Parser
 
 **Priority:** Must Have
 
 **Description:**
-The parser calculates estimated BF% for every weight entry using two formulas:
-- **YMCA** (waist + weight): `bf = ((-98.42 + 4.15 × waist_in - 0.082 × weight_lb) / weight_lb) × 100`
-- **Deurenberg** (BMI + age): `bf = (1.20 × bmi) + (0.23 × age) - (10.8 × 1) - 5.4`
-
-Athlete profile (age, height, waist) stored in `workout-config.json`. Parser outputs both estimates alongside scale BF% (where available) in `data.json`.
+Core parser that reads all MacroFactor monthly XLSX files from `drive_export/workout/`, merges data chronologically, and outputs enriched `public/data.json`. Replaces Health Connect as primary source for nutrition and workout data.
 
 **Acceptance Criteria:**
-- [ ] Parser reads `athlete.age`, `athlete.height_cm`, `athlete.waist_cm` from `workout-config.json`
-- [ ] YMCA and Deurenberg BF% calculated for every weight entry
-- [ ] Both estimates output in `data.json` alongside scale reading
-- [ ] If waist not provided, YMCA is skipped gracefully
-- [ ] Spot check: at 107 kg / 101 cm waist → YMCA gives ~20%
-
-**Dependencies:** FR-006 (config system)
+- [ ] Reads all `*.xlsx` files matching `MacroFactor-*.xlsx` pattern in `drive_export/workout/`
+- [ ] Merges Quick Export, Workout Log, Muscle Groups - Sets/Volume across all monthly files
+- [ ] Deduplicates overlapping date ranges (latest file wins)
+- [ ] Outputs merged, sorted data to `data.json`
+- [ ] Falls back to Health Connect for weight/BF% data if MF weight missing for a date
+- [ ] Runs via `uv run python parse.py` — openpyxl handled by uv/pyproject.toml
 
 ---
 
-### FR-002: Lean Mass Trend Chart
+### FR-002: BF% Estimation Engine
 
 **Priority:** Must Have
 
 **Description:**
-Dashboard displays a lean mass trend line calculated as `lean_kg = weight_kg × (1 - bf_pct/100)` using the formula-estimated BF%. This is the primary body composition signal during a cut — weight can drop from fat or muscle, lean mass separates the two.
+Estimated BF% calculated from anthropometric formulas to replace unreliable scale readings. Uses YMCA (waist + weight) and Deurenberg (BMI + age) methods. Athlete profile stored in `workout-config.json`.
 
 **Acceptance Criteria:**
-- [ ] Lean mass calculated from formula-estimated BF% (not noisy scale BF%)
-- [ ] Lean mass trend line shown alongside total weight on body composition chart
-- [ ] Y-axis shows both weight (kg) and lean mass (kg) with clear labels
-- [ ] Last lean mass value shown prominently on Coach Brief card
-- [ ] Trend direction annotated (up/stable/down with colour)
-
-**Dependencies:** FR-001
+- [ ] YMCA formula: `bf = ((-98.42 + 4.15 × waist_in - 0.082 × weight_lb) / weight_lb) × 100`
+- [ ] Deurenberg: `bf = (1.20 × bmi) + (0.23 × age) - (10.8) - 5.4`
+- [ ] Both estimates calculated for every weight entry
+- [ ] Athlete profile (age=31, height=181cm, waist=101cm) in `workout-config.json`
+- [ ] Spot check: at 107 kg / 101 cm waist → YMCA ~20%
 
 ---
 
-### FR-003: FFMI Tracking
+### FR-003: Lean Mass & FFMI Tracking
 
-**Priority:** Should Have
+**Priority:** Must Have
 
 **Description:**
-Fat-Free Mass Index (FFMI = lean_kg / height_m²) tracked over time. Provides a height-normalised lean mass metric. Natural athlete benchmark: ~25. Shown as a secondary chart on the body composition page.
+Lean mass (`weight × (1 - bf%)`) and FFMI (`lean_kg / height_m²`) calculated from formula-estimated BF% and MF's trend weight (smoother than raw scale). Primary body composition signal during the cut.
 
 **Acceptance Criteria:**
-- [ ] FFMI calculated for every data point with a lean mass value
-- [ ] FFMI chart shown on Athlete View body composition section
-- [ ] Reference lines drawn at 22 (average), 25 (genetic ceiling estimate), 28 (elite)
-- [ ] Current FFMI shown in Coach Brief
-
-**Dependencies:** FR-001, FR-002
+- [ ] Lean mass calculated using MF trend weight + formula BF% (not noisy scale BF%)
+- [ ] Lean mass trend line shown alongside total weight on body comp chart
+- [ ] FFMI chart with reference lines at 22 / 25 / 28
+- [ ] Current lean mass and FFMI on Coach Brief card
+- [ ] Trend direction labelled (↑ building / → maintaining / ↓ losing)
 
 ---
 
@@ -110,206 +140,165 @@ Fat-Free Mass Index (FFMI = lean_kg / height_m²) tracked over time. Provides a 
 **Priority:** Must Have
 
 **Description:**
-Visual progress indicator showing the cut journey: start weight (120 kg) → current weight → target (15% BF). Projected completion date estimated from last 30-day weight loss rate.
+Visual cut progress: start (120 kg) → current → projected target. Uses MF trend weight and formula-estimated BF%. Projected completion date from 30-day rate of change.
 
 **Acceptance Criteria:**
-- [ ] Start weight, current weight, target BF% loaded from `workout-config.json`
-- [ ] Progress bar: start → current → projected target weight at 15% BF
-- [ ] Projected target weight calculated: `lean_mass / (1 - 0.15)`
-- [ ] Rate of loss calculated from last 30 days (kg/week)
-- [ ] Projected completion date shown (with caveat label "estimated")
-- [ ] Total kg lost shown alongside kg remaining
-
-**Dependencies:** FR-001, FR-002
+- [ ] Start weight (120 kg) and target BF% (15%) from `workout-config.json`
+- [ ] Target weight calculated: `lean_mass / (1 - 0.15)`
+- [ ] Rate of loss from last 30 days of MF trend weight
+- [ ] Projected completion date shown with "estimated" label
+- [ ] kg lost / kg remaining displayed
 
 ---
 
-### FR-005: BF% Comparison View
+### FR-005: TDEE & Energy Balance Tracking
 
-**Priority:** Could Have
+**Priority:** Should Have
 
 **Description:**
-Optional overlay showing scale BF% vs YMCA estimate vs Deurenberg estimate on a single chart, allowing coach and athlete to assess scale reliability.
+MacroFactor estimates TDEE daily. Display TDEE trend alongside caloric intake to visualise the actual energy deficit — more accurate than a fixed 500 kcal assumption.
 
 **Acceptance Criteria:**
-- [ ] Three BF% lines on one chart (scale, YMCA, Deurenberg)
-- [ ] Scale BF% shown as dotted/lighter line to indicate lower reliability
-- [ ] Gap between scale and formula highlighted when divergence >3%
-
-**Dependencies:** FR-001
+- [ ] TDEE from MF Quick Export plotted as line chart
+- [ ] Actual deficit = TDEE − calories shown per day
+- [ ] 7-day avg deficit shown on Coach Brief
+- [ ] Flag days where deficit >800 kcal (excessive, muscle loss risk)
 
 ---
 
-### FR-006: Workout Config System
+### FR-006: Push / Pull / Upper / Lower Indexes
 
 **Priority:** Must Have
 
 **Description:**
-A `workout-config.json` file in the repo root stores all user-configurable parameters: athlete profile, workout-to-muscle-group mapping, MEV/MRV landmarks. This unlocks all volume-based analytics without requiring code changes.
+Four synthetic weekly volume indexes derived from MacroFactor's Muscle Groups - Sets data. No manual workout config mapping needed — MF already attributes sets to 22 muscle groups.
 
-**Acceptance Criteria:**
-- [ ] `workout-config.json` created with schema for athlete profile and workout mapping
-- [ ] Supports mapping each workout label (A–F) to: push/pull/upper/lower flags + muscle group list
-- [ ] Supports per-muscle-group MEV and MRV values (defaults provided)
-- [ ] Parser reads config at runtime; fails with clear error if config missing
-- [ ] Example config committed to repo with sensible defaults for Benjamin's programme
+**Muscle group groupings:**
+- **Push**: Chest + Front Delts + Side Delts + Triceps
+- **Pull**: Lats + Upper Back + Rear Delts + Biceps
+- **Upper**: Push + Pull + Upper Traps
+- **Lower**: Quads + Hamstrings + Glutes + Calves
 
-**Schema (minimum):**
-```json
-{
-  "athlete": {
-    "name": "Benjamin Trom",
-    "age": 31,
-    "height_cm": 181,
-    "sex": "male",
-    "waist_cm": 101,
-    "cut_start_kg": 120,
-    "target_bf_pct": 15
-  },
-  "workouts": {
-    "Workout A": { "push": true, "pull": false, "upper": true, "lower": false, "muscles": ["chest","shoulders","triceps"] }
-  },
-  "landmarks": {
-    "chest":      { "mev": 8,  "mav": 14, "mrv": 20 },
-    "back":       { "mev": 10, "mav": 16, "mrv": 22 },
-    "shoulders":  { "mev": 8,  "mav": 14, "mrv": 20 },
-    "biceps":     { "mev": 6,  "mav": 10, "mrv": 16 },
-    "triceps":    { "mev": 6,  "mav": 10, "mrv": 16 },
-    "quads":      { "mev": 8,  "mav": 14, "mrv": 20 },
-    "hamstrings": { "mev": 6,  "mav": 10, "mrv": 16 },
-    "glutes":     { "mev": 6,  "mav": 10, "mrv": 16 }
-  }
-}
-```
-
----
-
-### FR-007: Push / Pull / Upper / Lower Indexes
-
-**Priority:** Must Have
-
-**Description:**
-Four synthetic weekly volume indexes calculated from workout sessions × muscle group config. Each index = total sets in that category for the current ISO week. Displayed as score cards with colour coding relative to MEV/MRV landmarks.
-
-**Volume zones:**
+**Volume zones (sets/week):**
 - 🔵 Below MEV — under-training
 - 🟢 MEV → MAV — optimal
 - 🟡 MAV → MRV — high, monitor
 - 🔴 Above MRV — overtraining risk
 
 **Acceptance Criteria:**
-- [ ] Parser outputs weekly volume per muscle group and per index (push/pull/upper/lower) in `data.json`
-- [ ] Dashboard shows 4 index cards: Push, Pull, Upper, Lower
-- [ ] Each card shows: sets this week, zone colour, vs last week delta
-- [ ] Weekly index history available as a line chart (last 8 weeks)
-- [ ] Indexes only calculated for workout labels present in `workout-config.json`
-
-**Dependencies:** FR-006
+- [ ] Weekly totals calculated from summing daily MF muscle group sets
+- [ ] 4 index cards: Push / Pull / Upper / Lower with zone colour + delta vs last week
+- [ ] Weekly index history chart (last 8 weeks)
+- [ ] MEV/MRV defaults from `workout-config.json` (configurable)
 
 ---
 
-### FR-008: Weekly Volume Heatmap
+### FR-007: 22-Muscle Volume Heatmap
 
 **Priority:** Should Have
 
 **Description:**
-A grid visualisation: rows = muscle groups, columns = calendar weeks, cell colour = volume zone (below MEV / optimal / high / overtraining). Allows coach and athlete to spot systematic imbalances or gaps at a glance.
+Grid: 22 muscle groups (rows) × last 8 calendar weeks (columns). Cell colour = volume zone. The most granular view of training balance available — directly from MF data, no estimation.
 
 **Acceptance Criteria:**
-- [ ] Grid shows last 8 weeks × all configured muscle groups
-- [ ] Cell colour matches volume zones from FR-007
-- [ ] Cell tooltip on hover shows exact set count
-- [ ] Muscle groups with zero data for a week shown as grey (not white, to distinguish from "not configured")
-
-**Dependencies:** FR-006, FR-007
+- [ ] All 22 MF muscle groups shown as rows
+- [ ] Columns = ISO calendar weeks, last 8 weeks
+- [ ] Cell colour = volume zone using sets from MF Muscle Groups - Sets
+- [ ] Cell tooltip shows exact set count + volume (kg) from MF Muscle Groups - Volume
+- [ ] Muscle groups with no data shown in grey
 
 ---
 
-### FR-009: Push / Pull Balance Score
+### FR-008: Push / Pull Balance Score
 
 **Priority:** Must Have
 
 **Description:**
-Weekly ratio of Push sets to Pull sets. Displayed as a percentage and flagged when outside 80–120% range (i.e., push volume is less than 80% or more than 120% of pull volume).
+Weekly Push sets ÷ Pull sets ratio. Flagged when outside 80–120%.
 
 **Acceptance Criteria:**
-- [ ] Balance score = (push_sets / pull_sets) × 100, shown as e.g. "Push: 105%"
-- [ ] Green when 80–120%, yellow when 70–80% or 120–130%, red outside that
-- [ ] Score shown on Coach Brief card
-- [ ] 8-week balance trend shown as a chart on Athlete View
-
-**Dependencies:** FR-007
+- [ ] Ratio calculated from FR-006 push/pull totals
+- [ ] Displayed as percentage with colour (green/yellow/red)
+- [ ] On Coach Brief card
+- [ ] 8-week trend chart on Athlete View
 
 ---
 
-### FR-010: Configurable MEV/MRV Landmarks
-
-**Priority:** Should Have
-
-**Description:**
-MEV, MAV, and MRV values per muscle group are read from `workout-config.json` rather than hardcoded. Defaults are evidence-based but the coach or athlete can tune them to match actual recovery capacity.
-
-**Acceptance Criteria:**
-- [ ] Parser uses landmarks from config for volume zone calculations
-- [ ] Defaults shipped in repo config cover all standard muscle groups
-- [ ] Changing a value in config and re-running parser updates all zone calculations
-- [ ] Dashboard shows the applicable landmarks on volume charts as reference lines
-
-**Dependencies:** FR-006
-
----
-
-### FR-011: Progressive Overload Tracker
+### FR-009: Per-Exercise Progressive Overload Tracker
 
 **Priority:** Must Have
 
 **Description:**
-For each workout label (A–F), track total weekly reps over time. Highlight personal bests (highest total reps in a single session for that workout type). Flag when the same or lower volume appears for 2+ consecutive weeks.
+For every exercise in the MF Workout Log, track weight (kg) and volume load (weight × reps) over time. Highlight PRs. Flag stalls (no weight increase for 3+ sessions of same exercise).
 
 **Acceptance Criteria:**
-- [ ] Parser calculates total reps per session per workout label
-- [ ] Weekly volume (total reps) per workout label output in `data.json`
-- [ ] Line chart per workout label showing weekly reps over last 8 weeks
-- [ ] Sessions that are all-time PRs highlighted in accent colour
-- [ ] Stall flag shown when volume ≤ previous week for 2 consecutive weeks
-- [ ] Stall flags visible on Coach Brief if any workout is stalling
-
-**Dependencies:** None
+- [ ] Parser outputs per-exercise history: date, weight, reps, RIR, set type
+- [ ] Exercise list view: searchable/filterable list of all exercises performed
+- [ ] Clicking an exercise shows: weight trend chart, volume load trend, all sets table
+- [ ] PR sessions highlighted in accent colour
+- [ ] Stall flag: weight not increased for 3+ consecutive same-exercise sessions
+- [ ] Active stalls shown on Coach Brief
 
 ---
 
-### FR-012: Volume Spike Detector
+### FR-010: RIR Trend Tracking
 
 **Priority:** Should Have
 
 **Description:**
-Flag when any single week's total training volume (all sets across all sessions) exceeds the prior 4-week average by more than 20%. Acute:chronic workload ratio spike = injury risk, especially relevant for 7/7 training.
+MacroFactor records RIR (Reps In Reserve) per set. Track average RIR per workout over time — lower RIR = higher intensity. Useful for monitoring training effort and progressive overload quality.
 
 **Acceptance Criteria:**
-- [ ] Parser calculates rolling 4-week average total sets
+- [ ] Average RIR per workout session calculated
+- [ ] RIR trend chart on Athlete View (lower = harder)
+- [ ] Sessions with RIR = 0 (failure sets) highlighted
+- [ ] 4-week avg RIR shown on Coach Brief
+
+---
+
+### FR-011: Volume Spike Detector
+
+**Priority:** Should Have
+
+**Description:**
+Flag weeks where total training volume (sets across all muscle groups) exceeds prior 4-week average by >20%.
+
+**Acceptance Criteria:**
+- [ ] Rolling 4-week average total weekly sets calculated
 - [ ] Current week flagged if >120% of rolling average
-- [ ] Flag shown on Coach Brief as "⚠ Volume spike this week"
-- [ ] Historical spike weeks marked on volume trend chart
-
-**Dependencies:** None
+- [ ] Flag shown on Coach Brief: "⚠ Volume spike this week"
+- [ ] Historical spikes marked on volume trend chart
 
 ---
 
-### FR-013: Cardio & Sport Tracker
+### FR-012: Cardio & Sport Tracker
 
 **Priority:** Should Have
 
 **Description:**
-Track VO2-type sessions (bike, zone 4–5) and padel sessions separately from strength sessions. Show weekly count vs targets (VO2: 2×/week; Padel: 2–3×/week).
+VO2 bike sessions and padel sessions from Health Connect (not in MF). Show weekly counts vs targets.
 
 **Acceptance Criteria:**
-- [ ] Sessions classified as: strength, cardio/VO2, padel, or other — based on `exercise_type` and session title keywords
-- [ ] Weekly count per category shown on Coach Brief and Athlete View
-- [ ] VO2 session count vs target (2/week) shown with green/red indicator
+- [ ] Sessions classified from HC exercise type and title keywords
+- [ ] VO2 session count vs target (2/week) with green/red indicator
 - [ ] Padel session count shown
-- [ ] Training load distribution chart (strength vs cardio vs sport % of weekly sessions)
+- [ ] Training distribution: strength / cardio / sport on Coach Brief
 
-**Dependencies:** None
+---
+
+### FR-013: Nutrition Adherence
+
+**Priority:** Must Have
+
+**Description:**
+Using MF Quick Export which includes both actual and target macros per day — adherence is exact, not estimated from hardcoded targets.
+
+**Acceptance Criteria:**
+- [ ] Protein adherence: % of days where actual ≥ target protein (from MF)
+- [ ] Calorie adherence: % of days within ±200 kcal of MF target
+- [ ] 7-day and 30-day adherence scores
+- [ ] Calendar heatmap of protein hit/miss days
+- [ ] Today's macros vs targets on Coach Brief
 
 ---
 
@@ -318,15 +307,12 @@ Track VO2-type sessions (bike, zone 4–5) and padel sessions separately from st
 **Priority:** Should Have
 
 **Description:**
-Flag calendar days where caloric intake was below 1,800 kcal AND training volume was above the 30-day average. These days represent elevated recovery risk.
+Flag days where calories were significantly below target AND training volume was above average.
 
 **Acceptance Criteria:**
-- [ ] Parser identifies and flags recovery risk days in `data.json`
-- [ ] Flagged days shown as highlighted points on nutrition chart
-- [ ] Count of recovery risk days in last 7 days shown on Coach Brief
-- [ ] Threshold values (1,800 kcal, volume multiplier) configurable in `workout-config.json`
-
-**Dependencies:** FR-006
+- [ ] Flag days: actual calories < (target − 400) AND muscle group sets > 30-day avg
+- [ ] Flagged days shown on nutrition chart
+- [ ] Count in last 7 days on Coach Brief
 
 ---
 
@@ -335,27 +321,23 @@ Flag calendar days where caloric intake was below 1,800 kcal AND training volume
 **Priority:** Must Have
 
 **Description:**
-A pinned summary section at the top of the dashboard, visible without scrolling. Designed to be read in <10 seconds. Contains the most critical weekly metrics and active flags.
+Pinned summary at top of page. Readable in <10 seconds on mobile.
 
 **Contents:**
-- Latest weight + 7-day trend (↑/↓/→ + kg delta)
-- Estimated lean mass (latest, from formula BF%)
-- Current FFMI
-- Training streak (consecutive days)
-- This week: Push / Pull / Upper / Lower set counts with zone colours
+- Latest MF trend weight + 7-day delta
+- Estimated lean mass + FFMI
+- Training streak (consecutive days with MF workout log entries)
+- This week: Push / Pull / Upper / Lower sets with zone colours
 - Push/Pull balance score
-- 7-day protein adherence (% days ≥ 200g)
-- 7-day average calories vs 2,300 target
+- 7-day protein adherence % vs MF target
+- 7-day avg calories vs MF target + avg deficit
 - Active flags: volume spike / stall / imbalance / recovery risk
 
 **Acceptance Criteria:**
-- [ ] Coach Brief visible at top of page on all screen sizes without scrolling
-- [ ] All metrics update from `data.json` — no hardcoded values
-- [ ] Flags shown as colour-coded pills (🟢 / 🟡 / 🔴)
-- [ ] Loads and renders in <1 second
-- [ ] Looks clean and professional on mobile (coach may view on phone)
-
-**Dependencies:** FR-001, FR-002, FR-007, FR-009, FR-011, FR-012, FR-013, FR-014
+- [ ] Visible without scrolling on all screen sizes
+- [ ] All values from `data.json` — no hardcoded numbers
+- [ ] Flags as colour-coded pills (🟢 / 🟡 / 🔴)
+- [ ] Renders in <1 second
 
 ---
 
@@ -364,36 +346,32 @@ A pinned summary section at the top of the dashboard, visible without scrolling.
 **Priority:** Must Have
 
 **Description:**
-Two distinct views accessible via a toggle at the top of the page.
+Two views via toggle at top of page.
 
-- **Coach View:** Coach Brief card + weekly index summary + cut progress + active flags. One screen, no scrolling required.
-- **Athlete View:** Full dashboard with all charts, workout log, nutrition detail, heatmap, progressive overload charts.
+- **Coach View**: Coach Brief + weekly index summary + cut progress + flags. One screen.
+- **Athlete View**: Full dashboard — all charts, exercise log, heatmap, nutrition detail, progressive overload.
 
 **Acceptance Criteria:**
-- [ ] Toggle button clearly labelled "Coach" / "Athlete" at top of page
-- [ ] Coach View shows only Coach Brief card + index summary + cut progress + flags
-- [ ] Athlete View shows full existing dashboard plus all v2 additions
-- [ ] Default view is Coach View
-- [ ] Toggle state persists in `localStorage` for returning visitors
-
-**Dependencies:** FR-015
+- [ ] Toggle clearly labelled "Coach" / "Athlete"
+- [ ] Default: Coach View
+- [ ] Toggle state persists in `localStorage`
+- [ ] Coach View fits one screen without scrolling (mobile and desktop)
 
 ---
 
-### FR-017: Weekly Nutrition Adherence Charts
+### FR-017: Update Pipeline v2
 
-**Priority:** Should Have
+**Priority:** Must Have
 
 **Description:**
-Expand existing nutrition charts to include adherence tracking: % of days hitting protein target (≥200g) and calorie target (within ±200 kcal of 2,300).
+Updated `update.sh` that handles both MacroFactor XLSX and Health Connect DB. User drops new monthly XLSX into `drive_export/workout/` and runs the script.
 
 **Acceptance Criteria:**
-- [ ] 30-day protein adherence % shown as a score (e.g. "87% of days hit ≥200g protein")
-- [ ] Calendar heatmap or bar chart showing which days hit/missed protein target
-- [ ] 7-day and 30-day averages shown for calories and protein
-- [ ] Targets read from `workout-config.json`
-
-**Dependencies:** FR-006
+- [ ] `update.sh` runs `uv run python parse.py` (no args needed)
+- [ ] Parser auto-discovers all `MacroFactor-*.xlsx` in `drive_export/workout/`
+- [ ] Health Connect DB path configurable (default: `./health_connect_export.db`)
+- [ ] README updated with new workflow
+- [ ] `drive_export/` added to `.gitignore` (raw exports not committed)
 
 ---
 
@@ -405,12 +383,9 @@ Expand existing nutrition charts to include adherence tracking: % of days hittin
 
 **Priority:** Must Have
 
-**Description:** Dashboard renders fully in <3 seconds on a 4G mobile connection.
-
-**Acceptance Criteria:**
-- [ ] `data.json` remains under 500 KB after v2 parser additions
-- [ ] All charts render within 1 second of `data.json` load
-- [ ] No blocking network requests other than `data.json` and Chart.js CDN
+- `data.json` < 500 KB
+- Page fully rendered < 3s on 4G mobile
+- All charts render < 1s after data load
 
 ---
 
@@ -418,12 +393,9 @@ Expand existing nutrition charts to include adherence tracking: % of days hittin
 
 **Priority:** Must Have
 
-**Description:** Dashboard is fully usable on mobile — coach will frequently view on phone before sessions.
-
-**Acceptance Criteria:**
-- [ ] Coach Brief card readable without zooming on iPhone 12 screen width (390px)
-- [ ] All charts legible on mobile (labels not overlapping, touch-friendly tooltips)
-- [ ] No horizontal scrolling on mobile
+- Coach Brief readable without zooming at 390px width
+- No horizontal scroll
+- Touch-friendly chart tooltips
 
 ---
 
@@ -431,49 +403,28 @@ Expand existing nutrition charts to include adherence tracking: % of days hittin
 
 **Priority:** Must Have
 
-**Description:** Dashboard is fully public — no Vercel auth, no login, no token. Anyone with the URL can view it.
-
-**Acceptance Criteria:**
-- [ ] Vercel SSO protection set to "preview only" (production always public)
-- [ ] No auth headers required to load `data.json`
+- Vercel SSO protection: preview only, production always public
+- No login required
 
 ---
 
-### NFR-004: Config-Driven Customisation
+### NFR-004: Dependency Management via uv
 
 **Priority:** Must Have
 
-**Description:** Key parameters (athlete profile, workout mapping, targets, thresholds) are set in `workout-config.json` — no code changes required for routine adjustments.
-
-**Acceptance Criteria:**
-- [ ] Changing waist measurement in config updates all BF% estimates on next parse
-- [ ] Adding a new workout label in config immediately includes it in volume indexes
-- [ ] Changing a MEV/MRV value updates volume zone colours on next parse
+- `pyproject.toml` managed by uv
+- `uv run python parse.py` works on any machine with uv installed
+- openpyxl is the only added dependency
 
 ---
 
-### NFR-005: No External Runtime Dependencies
-
-**Priority:** Must Have
-
-**Description:** Parser (`parse.py`) runs on any machine with Python 3.11+ and standard library only. No `pip install` required.
-
-**Acceptance Criteria:**
-- [ ] `python3 parse.py` works on a fresh machine with no dependencies installed
-- [ ] `workout-config.json` path is relative — works from any directory
-
----
-
-### NFR-006: Graceful Degradation
+### NFR-005: Graceful Degradation
 
 **Priority:** Should Have
 
-**Description:** If workout config is missing or incomplete, dashboard still renders with available data and shows clear "config required" messages rather than crashing.
-
-**Acceptance Criteria:**
-- [ ] Missing workout mapping → volume indexes show "Configure workouts in workout-config.json"
-- [ ] Missing waist measurement → BF% estimation skipped, scale BF% used as fallback
-- [ ] No uncaught JS errors in browser console under any data conditions
+- Missing MF data for a date range → gap shown in charts, not crash
+- Missing Health Connect DB → cardio section shows "no cardio data"
+- No uncaught JS errors under any data conditions
 
 ---
 
@@ -481,205 +432,139 @@ Expand existing nutrition charts to include adherence tracking: % of days hittin
 
 ---
 
-### EPIC-001: Body Composition Intelligence
+### EPIC-001: Data Pipeline v2
 
 **Description:**
-Everything needed to track true body composition during the cut — replacing unreliable scale BF% with formula-estimated lean mass, FFMI, and cut progress visualisation.
+New parser that reads MacroFactor XLSX as primary source, merges with Health Connect, outputs enriched `data.json`. Foundation for everything else.
 
-**Functional Requirements:**
-- FR-001: BF% Estimation Engine
-- FR-002: Lean Mass Trend Chart
-- FR-003: FFMI Tracking
-- FR-004: Cut Progress Tracker
-- FR-005: BF% Comparison View
+**Functional Requirements:** FR-001, FR-017
+
+**Story Count Estimate:** 2–3
+
+**Priority:** Must Have
+
+---
+
+### EPIC-002: Body Composition Intelligence
+
+**Description:**
+BF% estimation, lean mass, FFMI, cut progress, TDEE tracking. The "are we keeping muscle?" layer.
+
+**Functional Requirements:** FR-002, FR-003, FR-004, FR-005
 
 **Story Count Estimate:** 3–4
 
 **Priority:** Must Have
 
-**Business Value:**
-During a cut, weight alone is misleading. Lean mass tracking tells the coach whether the athlete is losing fat or muscle — the most important decision-driving signal in the programme.
-
 ---
 
-### EPIC-002: Training Volume Intelligence
+### EPIC-003: Training Volume Intelligence
 
 **Description:**
-Workout config system + synthetic indexes + heatmap + balance score. Transforms raw session data into actionable volume analytics mapped to evidence-based MEV/MRV landmarks.
+Push/Pull/Upper/Lower indexes, 22-muscle heatmap, balance score — all from MF's pre-calculated muscle group data.
 
-**Functional Requirements:**
-- FR-006: Workout Config System
-- FR-007: Push / Pull / Upper / Lower Indexes
-- FR-008: Weekly Volume Heatmap
-- FR-009: Push / Pull Balance Score
-- FR-010: Configurable MEV/MRV Landmarks
-
-**Story Count Estimate:** 4–5
-
-**Priority:** Must Have
-
-**Business Value:**
-Without knowing which muscle groups are trained each session, all volume analytics are impossible. This epic is the foundation for all training intelligence in v2.
-
----
-
-### EPIC-003: Overload, Recovery & Cardio
-
-**Description:**
-Progressive overload signals, recovery risk flags, volume spike detection, and cardio/sport tracking. The "safety and progress" layer.
-
-**Functional Requirements:**
-- FR-011: Progressive Overload Tracker
-- FR-012: Volume Spike Detector
-- FR-013: Cardio & Sport Tracker
-- FR-014: Nutrition × Training Correlation Flag
-
-**Story Count Estimate:** 3–4
-
-**Priority:** Should Have
-
-**Business Value:**
-7/7 training with a caloric deficit is high-risk for overtraining and muscle loss. This epic provides the early-warning system the coach needs to intervene before damage is done.
-
----
-
-### EPIC-004: Coach Interface
-
-**Description:**
-Coach Brief card, two-view toggle, and enhanced nutrition adherence — the presentation layer that makes all the analytics accessible in <10 seconds.
-
-**Functional Requirements:**
-- FR-015: Coach Brief Card
-- FR-016: Coach View / Athlete View Toggle
-- FR-017: Weekly Nutrition Adherence Charts
+**Functional Requirements:** FR-006, FR-007, FR-008
 
 **Story Count Estimate:** 3–4
 
 **Priority:** Must Have
 
-**Business Value:**
-Data is only useful if it's seen. The coach needs a frictionless, mobile-friendly view that surfaces the right information instantly before every session.
+---
+
+### EPIC-004: Progressive Overload & Recovery
+
+**Description:**
+Per-exercise weight/volume tracking, RIR trends, volume spike detection, cardio tracker. The "are we progressing safely?" layer.
+
+**Functional Requirements:** FR-009, FR-010, FR-011, FR-012
+
+**Story Count Estimate:** 3–4
+
+**Priority:** Must Have (FR-009), Should Have (rest)
 
 ---
 
-## User Stories (High-Level)
+### EPIC-005: Coach Interface & Nutrition
 
-**EPIC-001:**
-- As Benjamin, I want to see my lean mass trend so I know if I'm losing fat or muscle during the cut
-- As the coach, I want to see current FFMI so I can assess muscle development relative to Benjamin's frame
-- As Benjamin, I want a projected date for reaching 15% BF based on my current rate of loss
+**Description:**
+Coach Brief card, two-view toggle, nutrition adherence using MF targets, correlation flags.
 
-**EPIC-002:**
-- As the coach, I want to see Push/Pull/Upper/Lower sets this week vs MEV/MRV so I can assess training balance
-- As Benjamin, I want a volume heatmap so I can see which muscle groups I've been neglecting
-- As the coach, I want a Push/Pull balance score so I can catch shoulder imbalances early
+**Functional Requirements:** FR-013, FR-014, FR-015, FR-016
 
-**EPIC-003:**
-- As the coach, I want to see if any workout type is stalling (same reps 2+ weeks) so I can adjust programming
-- As Benjamin, I want a volume spike flag so I can catch overtraining before injury
-- As the coach, I want to see VO2 session count vs target to ensure cardio programming is on track
+**Story Count Estimate:** 3–4
 
-**EPIC-004:**
-- As the coach, I want a single-screen summary I can read in 10 seconds before a session
-- As Benjamin, I want to toggle between coach view and full athlete view
-- As the coach, I want to see protein adherence % so I know if nutrition is the limiting factor
+**Priority:** Must Have
 
 ---
 
 ## User Personas
 
-**Benjamin (Athlete, Primary)**
-- 31M, 181 cm, 107 kg
-- Daily user — updates dashboard and monitors own progress
-- Wants granular detail: every chart, all history, PRs highlighted
-- Comfortable with data and technology
-
-**Coach (Secondary)**
-- Reviews 1–2×/week pre-session, likely on mobile
-- Wants high-level summary only — flags, trends, weekly numbers
-- Does not want to dig through tabs or scroll through logs
-- Decision-driven: "should I change the programme this week?"
+**Benjamin (Athlete)** — daily user, wants all the detail, updates exports
+**Coach** — 1–2×/week pre-session on mobile, wants 10-second summary
 
 ---
 
 ## User Flows
 
-**Flow 1: Pre-session coach check (Coach View)**
-1. Open URL → Coach View loads by default
-2. Scan Coach Brief card: weight trend, lean mass, indexes, flags
-3. If any flags active → drill into Athlete View for context
-4. Walk into session with full picture
+**Coach pre-session:** Open URL → Coach View → scan Brief → drill to Athlete View if flags
 
-**Flow 2: Daily athlete update**
-1. Export `.db` from Health Connect
-2. Run `./update.sh /path/to/health_connect_export.db`
-3. Open dashboard → verify data looks correct
-4. Check if any new PRs or flags
+**Daily update:**
+```bash
+# Drop new MacroFactor export in drive_export/workout/
+./update.sh
+# → parses all XLSX + HC DB → git push → Vercel deploys
+```
 
-**Flow 3: Config update (new workout added)**
-1. Edit `workout-config.json`, add new workout label with muscle groups
-2. Run `python3 parse.py` → volume indexes now include new workout
-3. `git push` → dashboard updates
+**Monthly:** Export MacroFactor for new month → drop in folder → run update
 
 ---
 
 ## Dependencies
 
-### Internal Dependencies
-
-- v1 `parse.py` — will be extended (not replaced)
-- v1 `public/app.js` — will be refactored to support two views
-- `public/data.json` — schema extended; backwards compatible
-
-### External Dependencies
-
-- Health Connect daily export (manual trigger)
-- Chart.js CDN (already in use)
-- Vercel (deployment, already configured)
-- GitHub (source, already configured)
+| Dependency | Type | Notes |
+|-----------|------|-------|
+| MacroFactor XLSX exports | Data | Monthly, manual export |
+| Health Connect daily `.db` | Data | Secondary source |
+| openpyxl | Python lib | Managed via uv |
+| Chart.js CDN | Frontend | Already in use |
+| Vercel | Hosting | Already configured |
 
 ---
 
 ## Assumptions
 
-- Workout A–F labels are stable in Myoadapt (same name = same workout type)
-- Waist measurement will be updated in config periodically (at least monthly)
-- Coach is happy with URL-based access, no desire for login/auth
-- MEV/MRV evidence-based defaults are acceptable starting points; coach will tune if needed
-- Health Connect export continues to use the same SQLite schema
+- MacroFactor exports include full workout log with weight, reps, RIR
+- Monthly export cadence is acceptable (data not real-time)
+- MF trend weight is more reliable than raw scale readings
+- MF targets change over time — using MF-exported targets per day (not hardcoded)
+- `drive_export/` stays local, never committed to git
 
 ---
 
 ## Out of Scope
 
-- Individual exercise name tracking (not available in Health Connect via Myoadapt)
-- RPE / RIR tracking
+- Real-time sync with MacroFactor API (no public API available)
+- Individual food item nutritional deep-dives
 - Sleep data
-- Multi-user support / auth
-- Push notifications
-- Native mobile app
-- HRV-based readiness score (future)
-- Photo timeline (future)
+- Multi-user
+- Auth/login
+- Native app
+- Strength Level integration (no benchmarking data structure planned yet)
 
 ---
 
 ## Open Questions
 
-1. **What are the actual muscle groups for Workouts A–F?** Config will need to be populated before volume indexes work. Benjamin to complete `workout-config.json` with actual programme details.
-2. **What is the current waist measurement?** Brief states 100–102 cm — use 101 cm as default in config.
-3. **Should Padel count toward weekly training volume?** Currently excluded from strength volume — treat as active recovery unless coach says otherwise.
+1. **Export frequency**: User exports MF monthly — is this sufficient or should we prompt for more frequent exports?
+2. **Historical data**: Do we have MF exports going back to November 2025 (training start)? Currently only Jan + Feb.
+3. **Waist measurement history**: Single value in config or can we track it over time?
 
 ---
 
 ## Stakeholders
 
-- **Benjamin Trom (Owner)** — approves requirements, populates workout config
-- **Coach** — primary end-user of Coach View; provides feedback post-launch
-
-### Approval Status
-
-- [ ] Benjamin (Product Owner)
-- [ ] Coach (end-user review)
+- **Benjamin Trom** — approves, updates exports
+- **Coach** — primary consumer of Coach View
 
 ---
 
@@ -687,45 +572,39 @@ Data is only useful if it's seen. The coach needs a frictionless, mobile-friendl
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0 | 2026-02-26 | trom | Initial PRD for v2 |
+| 1.0 | 2026-02-26 | trom | Initial PRD (Health Connect primary) |
+| 2.0 | 2026-02-26 | trom | MacroFactor as primary source, full data audit |
 
 ---
 
 ## Next Steps
 
-### Phase 3: Architecture
-Run `/architecture` to design the v2 data model, config schema, and parser changes.
-
-### Phase 4: Sprint Planning
-After architecture, run `/sprint-planning` to break epics into ~13–15 stories.
+1. Run `/architecture` — data model for merged MF + HC sources
+2. Run `/sprint-planning` — ~15 stories across 5 epics
 
 ---
 
 **This document was created using BMAD Method v6 - Phase 2 (Planning)**
 
-*To continue: Run `/architecture` or `/workflow-status`.*
+---
+
+## Appendix A: Traceability Matrix
+
+| Epic | Name | FRs | Stories (Est.) |
+|------|------|-----|----------------|
+| EPIC-001 | Data Pipeline v2 | FR-001, FR-017 | 2–3 |
+| EPIC-002 | Body Composition | FR-002, FR-003, FR-004, FR-005 | 3–4 |
+| EPIC-003 | Volume Intelligence | FR-006, FR-007, FR-008 | 3–4 |
+| EPIC-004 | Progressive Overload & Recovery | FR-009, FR-010, FR-011, FR-012 | 3–4 |
+| EPIC-005 | Coach Interface & Nutrition | FR-013, FR-014, FR-015, FR-016 | 3–4 |
+
+**Total: 17 FRs, 5 NFRs, 5 Epics, ~14–19 stories**
 
 ---
 
-## Appendix A: Requirements Traceability Matrix
+## Appendix B: Prioritisation
 
-| Epic ID | Epic Name | Functional Requirements | Story Count (Est.) |
-|---------|-----------|-------------------------|-------------------|
-| EPIC-001 | Body Composition Intelligence | FR-001, FR-002, FR-003, FR-004, FR-005 | 3–4 |
-| EPIC-002 | Training Volume Intelligence | FR-006, FR-007, FR-008, FR-009, FR-010 | 4–5 |
-| EPIC-003 | Overload, Recovery & Cardio | FR-011, FR-012, FR-013, FR-014 | 3–4 |
-| EPIC-004 | Coach Interface | FR-015, FR-016, FR-017 | 3–4 |
-
-**Total estimated stories: 13–17**
-
----
-
-## Appendix B: Prioritization Details
-
-| Priority | FRs | NFRs |
-|----------|-----|------|
-| Must Have | FR-001, FR-002, FR-004, FR-006, FR-007, FR-009, FR-011, FR-015, FR-016 (9) | NFR-001, NFR-002, NFR-003, NFR-004, NFR-005 (5) |
-| Should Have | FR-003, FR-008, FR-010, FR-012, FR-013, FR-014, FR-017 (7) | NFR-006 (1) |
-| Could Have | FR-005 (1) | — |
-
-**Total: 17 FRs, 6 NFRs, 4 Epics**
+| Priority | FRs |
+|----------|-----|
+| Must Have | FR-001, FR-002, FR-003, FR-004, FR-006, FR-008, FR-009, FR-013, FR-015, FR-016, FR-017 (11) |
+| Should Have | FR-005, FR-007, FR-010, FR-011, FR-012, FR-014 (6) |
