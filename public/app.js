@@ -782,6 +782,69 @@ const SL_DATA = {
     110: [2,  30, 63, 98,  136],
     120: [2,  31, 65, 102, 140],
   },
+  "t-bar-row": {
+    60:  [25, 42, 65, 93,  124],
+    70:  [33, 52, 77, 108, 141],
+    80:  [40, 62, 89, 121, 156],
+    90:  [48, 71, 100,134, 171],
+    100: [55, 79, 110,145, 184],
+    110: [62, 88, 120,156, 196],
+    120: [68, 95, 129,167, 208],
+  },
+  "cable-lateral-raise": {
+    60:  [0, 4,  14, 29, 48],
+    70:  [1, 6,  16, 33, 53],
+    80:  [1, 7,  19, 36, 58],
+    90:  [2, 9,  21, 40, 62],
+    100: [3, 10, 24, 43, 66],
+    110: [3, 12, 26, 46, 70],
+    120: [4, 13, 28, 48, 73],
+  },
+  "seated-leg-curl": {
+    60:  [22, 40, 65, 95,  130],
+    70:  [28, 47, 74, 106, 142],
+    80:  [32, 54, 81, 115, 152],
+    90:  [37, 60, 89, 124, 162],
+    100: [42, 65, 95, 132, 171],
+    110: [46, 70, 102,139, 180],
+    120: [50, 75, 108,146, 188],
+  },
+  "preacher-curl": {
+    60:  [12, 22, 36, 53, 72],
+    70:  [15, 26, 41, 59, 80],
+    80:  [18, 30, 46, 65, 87],
+    90:  [21, 34, 51, 71, 93],
+    100: [24, 38, 55, 76, 99],
+    110: [27, 41, 59, 81, 105],
+    120: [30, 44, 63, 85, 110],
+  },
+  "leg-extension": {
+    60:  [27, 49, 79, 116, 158],
+    70:  [34, 58, 90, 129, 172],
+    80:  [40, 65, 99, 140, 186],
+    90:  [45, 73, 108,150, 198],
+    100: [51, 79, 116,160, 209],
+    110: [56, 86, 124,169, 219],
+    120: [61, 92, 131,178, 228],
+  },
+  "horizontal-leg-press": {
+    60:  [52,  93,  149, 218, 297],
+    70:  [67,  113, 174, 248, 331],
+    80:  [82,  132, 197, 276, 363],
+    90:  [96,  149, 219, 301, 392],
+    100: [109, 166, 239, 325, 419],
+    110: [122, 182, 258, 347, 444],
+    120: [135, 198, 276, 368, 468],
+  },
+  "tricep-pushdown": {
+    60:  [12, 24, 43, 67,  95],
+    70:  [16, 30, 51, 77,  106],
+    80:  [20, 36, 58, 85,  116],
+    90:  [24, 41, 65, 93,  126],
+    100: [28, 46, 71, 101, 134],
+    110: [32, 51, 77, 108, 143],
+    120: [35, 56, 83, 115, 150],
+  },
 };
 
 const SL_TIERS = ["beginner", "novice", "intermediate", "advanced", "elite"];
@@ -792,12 +855,19 @@ const STANDARDS_MAP = [
   ["Barbell Bench Press",          "bench-press"],
   ["Low Incline Barbell Press",    "incline-bench-press"],
   ["Barbell Romanian Deadlift",    "deadlift"],
-  ["Lat Pulldown",                 "lat-pulldown"],
+  ["Cable Lat Pulldown",           "lat-pulldown"],
   ["Assisted Pull-Up",             "pull-ups"],
   ["Assisted Dip",                 "dips"],
   ["Machine Triceps Dip",          "dips"],
   ["Machine Shoulder Press",       "shoulder-press"],
   ["Machine Press",                "shoulder-press"],
+  ["T-Bar Row",                    "t-bar-row"],
+  ["Cable Lateral Raise",          "cable-lateral-raise"],
+  ["Hamstring Curl",               "seated-leg-curl"],
+  ["Preacher Curl",                "preacher-curl"],
+  ["Leg Extension",                "leg-extension"],
+  ["Leg Press",                    "horizontal-leg-press"],
+  ["Cable Straight Bar Triceps Pushdown", "tricep-pushdown"],
 ];
 
 function getStandardsKey(exerciseName) {
@@ -945,7 +1015,13 @@ function renderStrengthStandards(allTimePR, bwKg) {
   }
 
   // Sort: bench first, then by e1rm desc
-  const ORDER = ["bench-press", "incline-bench-press", "lat-pulldown", "pull-ups", "dips", "shoulder-press", "deadlift"];
+  const ORDER = [
+    "bench-press", "incline-bench-press", "deadlift",
+    "horizontal-leg-press", "leg-extension", "seated-leg-curl",
+    "lat-pulldown", "t-bar-row", "pull-ups",
+    "shoulder-press", "dips",
+    "cable-lateral-raise", "preacher-curl", "tricep-pushdown",
+  ];
   rows.sort((a, b) => {
     const ai = ORDER.indexOf(a.key), bi = ORDER.indexOf(b.key);
     if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
