@@ -1,23 +1,25 @@
 #!/bin/bash
-# Update the workout dashboard with a new Health Connect export
-# Usage: ./update.sh /path/to/health_connect_export.db
+# Update the workout dashboard
+# Usage: ./update.sh [/path/to/health_connect_export.db]
+#
+# 1. Drop new MacroFactor-*.xlsx files into drive_export/workout/
+# 2. Run: ./update.sh
+# 3. Dashboard updates in ~15 seconds at https://workout-hgi.vercel.app
 
 set -e
 
-if [ -z "$1" ]; then
-  echo "Usage: ./update.sh /path/to/health_connect_export.db"
-  exit 1
+# Optionally copy a new Health Connect DB
+if [ -n "$1" ]; then
+  echo "Copying $1 ..."
+  cp "$1" ./health_connect_export.db
 fi
 
-echo "Copying $1 ..."
-cp "$1" ./health_connect_export.db
-
 echo "Parsing data..."
-python3 parse.py
+uv run python parse.py
 
 echo "Committing and pushing..."
-git add public/data.json
-git commit -m "data: $(date +%Y-%m-%d)"
+git add public/data.json workout-config.json
+git commit -m "data: $(date +%Y-%m-%d)" --allow-empty
 git push
 
 echo ""

@@ -1,0 +1,27 @@
+{
+  "athlete": {
+    "age": 31,
+    "height_cm": 181,
+    "waist_cm": 101,
+    "start_weight_kg": 120,
+    "target_bf_pct": 15
+  },
+  "volume_landmarks": {
+    "Push": {
+      "mev": 16,
+      "mrv": 24
+    },
+    "Pull": {
+      "mev": 16,
+      "mrv": 24
+    },
+    "Upper": {
+      "mev": 32,
+      "mrv": 48
+    },
+    "Lower": {
+      "mev": 16,
+      "mrv": 24
+    }
+  }
+}
