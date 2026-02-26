@@ -1,0 +1,55 @@
+version: "6.0.0"
+project_name: "workout"
+project_level: 1
+current_sprint: 1
+sprint_plan_path: "docs/sprint-plan-workout-2026-02-26.md"
+
+sprints:
+  - sprint_number: 1
+    start_date: "2026-02-26"
+    end_date: "2026-02-26"
+    capacity_points: 16
+    committed_points: 16
+    completed_points: 0
+    status: "in_progress"
+    goal: "Ship a live public dashboard the coach can open today"
+    stories:
+      - story_id: "STORY-001"
+        title: "DB Parser"
+        points: 3
+        status: "not_started"
+        assigned_to: "trom"
+      - story_id: "STORY-002"
+        title: "Dashboard Shell"
+        points: 2
+        status: "not_started"
+        assigned_to: "trom"
+      - story_id: "STORY-003"
+        title: "Weight & Body Fat Charts"
+        points: 3
+        status: "not_started"
+        assigned_to: "trom"
+      - story_id: "STORY-004"
+        title: "Workout Log"
+        points: 3
+        status: "not_started"
+        assigned_to: "trom"
+      - story_id: "STORY-005"
+        title: "Nutrition Summary"
+        points: 3
+        status: "not_started"
+        assigned_to: "trom"
+      - story_id: "STORY-006"
+        title: "Deployment & Pipeline"
+        points: 2
+        status: "not_started"
+        assigned_to: "trom"
+
+velocity:
+  sprint_1: null
+  rolling_average: null
+
+team:
+  size: 1
+  sprint_length_weeks: 0.2
+  capacity_per_sprint: 16
