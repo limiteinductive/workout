@@ -17,8 +17,9 @@ sprints:
       - story_id: "STORY-201"
         title: "MacroFactor XLSX Reader + Athlete Config"
         points: 8
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-202"
         title: "Health Connect Integration + update.sh v2"
         points: 3
