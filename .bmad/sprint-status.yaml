@@ -23,8 +23,9 @@ sprints:
       - story_id: "STORY-202"
         title: "Health Connect Integration + update.sh v2"
         points: 3
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
 
   - sprint_number: 2
     start_date: "2026-03-05"
@@ -38,13 +39,15 @@ sprints:
       - story_id: "STORY-203"
         title: "BF% Estimation + Lean Mass + FFMI Dashboard"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
       - story_id: "STORY-204"
         title: "Cut Progress Tracker + TDEE Energy Balance"
         points: 5
-        status: "not_started"
+        status: "completed"
         assigned_to: null
+        completed_date: "2026-02-26"
 
   - sprint_number: 3
     start_date: "2026-03-12"

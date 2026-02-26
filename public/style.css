@@ -379,6 +379,45 @@ details[open] summary::after { transform: rotate(90deg); }
 .pill-red    { background: rgba(255, 87, 87, 0.15);   color: var(--red); }
 .pill-blue   { background: rgba(87, 200, 255, 0.15);  color: var(--accent2); }
 
+/* ── Cut progress bar ───────────────────────────────────────────────── */
+
+.cut-bar-wrap { margin: 0.5rem 0; }
+
+.cut-bar {
+  position: relative;
+  height: 10px;
+  background: var(--border);
+  border-radius: 5px;
+  overflow: visible;
+}
+
+.cut-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 5px;
+  transition: width 0.4s ease;
+}
+
+.cut-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+
+.cut-stats {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+#cut-projection { color: var(--muted); font-size: 0.75rem; }
+
 /* ── Responsive ─────────────────────────────────────────────────────── */
 
 @media (max-width: 400px) {

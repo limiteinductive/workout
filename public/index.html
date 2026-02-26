@@ -125,6 +125,46 @@
           </div>
         </div>
 
+        <!-- Cut Progress -->
+        <div class="chart-box" id="cut-progress-box">
+          <h2>Cut Progress</h2>
+          <div class="cut-bar-wrap">
+            <div class="cut-bar">
+              <div class="cut-bar-fill" id="cut-bar-fill"></div>
+              <div class="cut-marker current" id="cut-marker-current"></div>
+            </div>
+            <div class="cut-bar-labels">
+              <span id="cut-label-start"></span>
+              <span id="cut-label-current"></span>
+              <span id="cut-label-target"></span>
+            </div>
+          </div>
+          <div class="cut-stats">
+            <span id="cut-kg-stats"></span>
+            <span id="cut-projection"></span>
+          </div>
+        </div>
+
+        <!-- TDEE vs Calories -->
+        <div class="chart-box">
+          <h2>TDEE vs Calories</h2>
+          <div class="range-btns">
+            <button class="range-btn active" data-tdee-range="30">30d</button>
+            <button class="range-btn" data-tdee-range="0">All</button>
+          </div>
+          <canvas id="tdee-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:#ff9944"></span> TDEE &nbsp;
+            <span class="legend-dot" style="background:var(--accent)"></span> Calories
+          </div>
+        </div>
+
+        <!-- Daily Deficit -->
+        <div class="chart-box">
+          <h2>Daily Deficit <span id="avg-deficit-badge" class="pill pill-green" style="font-size:0.7rem;margin-left:0.5rem"></span></h2>
+          <canvas id="deficit-chart"></canvas>
+        </div>
+
       </section>
 
       <!-- VOLUME ─────────────────────────────────────────────────── -->

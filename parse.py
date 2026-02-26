@@ -12,7 +12,7 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_cls, timedelta
 from pathlib import Path
 
 import openpyxl
@@ -361,7 +361,7 @@ def compute_body_comp(weight_series: list, config: dict) -> list:
     return result
 
 
-def compute_summary(body_comp: list) -> dict:
+def compute_summary(body_comp: list, mf_daily_list: list = None) -> dict:
     """Pre-compute latest values for the Coach Brief card."""
     if not body_comp:
         return {}
@@ -377,6 +377,23 @@ def compute_summary(body_comp: list) -> dict:
         lean_delta = latest["lean_kg"] - week_ago["lean_kg"]
         lean_trend = "↑" if lean_delta > 0.3 else ("↓" if lean_delta < -0.3 else "→")
 
+    # avg_deficit_7d: average (tdee - kcal) over last 7 days where both exist
+    avg_deficit_7d = None
+    if mf_daily_list:
+        today_str = date_cls.today().isoformat()
+        cutoff_str = (date_cls.today() - timedelta(days=7)).isoformat()
+        deficits = []
+        for day in mf_daily_list:
+            d = day.get("date", "")
+            if d < cutoff_str or d > today_str:
+                continue
+            tdee = day.get("tdee")
+            kcal = day.get("kcal")
+            if tdee is not None and kcal is not None:
+                deficits.append(tdee - kcal)
+        if deficits:
+            avg_deficit_7d = round(sum(deficits) / len(deficits), 0)
+
     return {
         "latest_date": latest["date"],
         "trend_kg": latest["trend_kg"],
@@ -385,6 +402,70 @@ def compute_summary(body_comp: list) -> dict:
         "lean_kg": latest["lean_kg"],
         "lean_trend": lean_trend,
         "ffmi": latest["ffmi"],
+        "avg_deficit_7d": avg_deficit_7d,
+    }
+
+
+def compute_cut(body_comp: list, mf_daily_list: list, config: dict) -> dict:
+    """Compute cut progress metrics: target weight, rate of loss, projected completion."""
+    athlete = config["athlete"]
+    start_weight = athlete["start_weight_kg"]
+    target_bf = athlete["target_bf_pct"] / 100.0
+
+    if not body_comp:
+        return {}
+
+    latest = body_comp[-1]
+    lean_kg = latest["lean_kg"]
+    current_trend = latest["trend_kg"]
+    target_weight = round(lean_kg / (1 - target_bf), 1)
+    kg_lost = round(start_weight - current_trend, 1)
+    kg_remaining = round(current_trend - target_weight, 1)
+
+    # Rate of loss: linear regression over last 30 body_comp entries with trend_kg
+    recent = [e for e in body_comp if e.get("trend_kg") is not None][-30:]
+    rate_kg_per_week = None
+    projected_date = None
+    if len(recent) >= 7:
+        n = len(recent)
+        xs = list(range(n))
+        ys = [e["trend_kg"] for e in recent]
+        mean_x = sum(xs) / n
+        mean_y = sum(ys) / n
+        num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+        den = sum((x - mean_x) ** 2 for x in xs)
+        slope_per_day = num / den if den else 0  # kg per day
+        rate_kg_per_week = round(slope_per_day * 7, 2)
+
+        if slope_per_day < -0.05 / 7:  # losing at least 0.05 kg/week
+            days_to_target = kg_remaining / abs(slope_per_day)
+            projected = date_cls.today() + timedelta(days=days_to_target)
+            projected_date = projected.strftime("%Y-%m-%d")
+
+    # Count high-deficit days in last 7
+    today_str = date_cls.today().isoformat()
+    cutoff_str = (date_cls.today() - timedelta(days=7)).isoformat()
+    high_deficit_days = 0
+    for day in mf_daily_list:
+        d = day.get("date", "")
+        if d < cutoff_str or d > today_str:
+            continue
+        tdee = day.get("tdee")
+        kcal = day.get("kcal")
+        if tdee is not None and kcal is not None:
+            deficit = tdee - kcal
+            if deficit > 800:
+                high_deficit_days += 1
+
+    return {
+        "start_weight_kg": start_weight,
+        "current_trend_kg": current_trend,
+        "target_weight_kg": target_weight,
+        "kg_lost": kg_lost,
+        "kg_remaining": kg_remaining,
+        "rate_kg_per_week": rate_kg_per_week,
+        "projected_completion_date": projected_date,
+        "high_deficit_days_last7": high_deficit_days,
     }
 
 
@@ -413,11 +494,24 @@ def build_output(mf: dict, hc: dict, config: dict) -> dict:
     mf_daily = mf["daily"]
     weight_series = build_weight_series(mf_daily, hc["hc_weight"])
     body_comp = compute_body_comp(weight_series, config)
+
+    # Enrich each mf_daily entry with deficit field
+    mf_daily_list = []
+    for d in sorted(mf_daily):
+        entry = dict(mf_daily[d])
+        tdee = entry.get("tdee")
+        kcal = entry.get("kcal")
+        entry["deficit"] = round(tdee - kcal, 0) if tdee is not None and kcal is not None else None
+        mf_daily_list.append(entry)
+
+    cut = compute_cut(body_comp, mf_daily_list, config)
+
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "config": config,
-        "summary": compute_summary(body_comp),
-        "mf_daily": [mf_daily[d] for d in sorted(mf_daily)],
+        "summary": compute_summary(body_comp, mf_daily_list),
+        "cut": cut,
+        "mf_daily": mf_daily_list,
         "muscle_sets": [mf["muscle_sets"][d] for d in sorted(mf["muscle_sets"])],
         "muscle_volume": [mf["muscle_volume"][d] for d in sorted(mf["muscle_volume"])],
         "workouts": [mf["workouts"][d] for d in sorted(mf["workouts"])],

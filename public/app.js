@@ -25,9 +25,13 @@ async function loadData() {
 
   renderCoachSummary();
   renderBodyComp(30);
+  renderCutProgress();
+  renderTdeeChart(30);
+  renderDeficitChart();
   setupViewToggle();
   setupTabs();
   setupBodyCompRange();
+  setupTdeeRange();
 }
 
 // ── View toggle (Coach / Athlete) ─────────────────────────────────────────────
@@ -240,6 +244,184 @@ function setupBodyCompRange() {
       btn.classList.add("active");
       renderBodyComp(parseInt(btn.dataset.bcRange));
     });
+  });
+}
+
+// ── Cut progress ──────────────────────────────────────────────────────────────
+
+function renderCutProgress() {
+  const cut = data.cut;
+  if (!cut || !cut.current_trend_kg) return;
+
+  const start = cut.start_weight_kg;
+  const current = cut.current_trend_kg;
+  const target = cut.target_weight_kg;
+
+  // Fill % = (start - current) / (start - target) * 100, clamped 0–100
+  const pct = Math.min(100, Math.max(0, ((start - current) / (start - target)) * 100));
+
+  const fill = document.getElementById("cut-bar-fill");
+  if (fill) fill.style.width = pct.toFixed(1) + "%";
+
+  setText("cut-label-start",   `Start ${start} kg`);
+  setText("cut-label-current", `Current ${current} kg`);
+  setText("cut-label-target",  `Target ~${target} kg`);
+
+  setText("cut-kg-stats", `${cut.kg_lost} kg lost · ${cut.kg_remaining} kg remaining`);
+
+  const rate = cut.rate_kg_per_week;
+  const proj = cut.projected_completion_date;
+  let projText = "";
+  if (proj) {
+    projText = `Rate: ${rate} kg/week · Projected: ~${proj} (estimated)`;
+  } else {
+    projText = rate != null
+      ? `Rate: ${rate} kg/week · Rate too slow to estimate`
+      : "Rate too slow to estimate";
+  }
+  setText("cut-projection", projText);
+}
+
+// ── TDEE vs Calories chart ─────────────────────────────────────────────────────
+
+function renderTdeeChart(days) {
+  const TDEE_COLOR = "#ff9944";
+  const rows = filterLast(data.mf_daily, days).filter(
+    r => r.tdee != null || r.kcal != null
+  );
+  if (!rows.length) return;
+
+  const labels = rows.map(r => r.date.slice(5));
+
+  destroyChart("tdee-chart");
+  const ctx = document.getElementById("tdee-chart").getContext("2d");
+  charts["tdee-chart"] = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "TDEE",
+          data: rows.map(r => r.tdee ?? null),
+          borderColor: TDEE_COLOR,
+          backgroundColor: TDEE_COLOR + "15",
+          fill: false,
+          tension: 0.3,
+          spanGaps: false,
+          pointRadius: 2,
+          hoverRadius: 5,
+        },
+        {
+          label: "Calories",
+          data: rows.map(r => r.kcal ?? null),
+          borderColor: ACCENT,
+          backgroundColor: ACCENT + "15",
+          fill: false,
+          tension: 0.3,
+          spanGaps: false,
+          pointRadius: 2,
+          hoverRadius: 5,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const row = rows[ctx.dataIndex];
+              const tdee = row.tdee;
+              const kcal = row.kcal;
+              if (ctx.dataset.label === "TDEE") {
+                return ` TDEE: ${tdee != null ? tdee + " kcal" : "—"}`;
+              }
+              const deficit = (tdee != null && kcal != null) ? Math.round(tdee - kcal) : null;
+              return ` Calories: ${kcal != null ? kcal + " kcal" : "—"}${deficit != null ? "  (deficit " + deficit + ")" : ""}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 6, maxRotation: 0 } },
+        y: { ticks: { callback: v => v + " kcal" } },
+      },
+      elements: { point: { radius: 2, hoverRadius: 5 } },
+    },
+  });
+}
+
+function setupTdeeRange() {
+  document.querySelectorAll("[data-tdee-range]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-tdee-range]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderTdeeChart(parseInt(btn.dataset.tdeeRange));
+    });
+  });
+}
+
+// ── Daily deficit bar chart ────────────────────────────────────────────────────
+
+function renderDeficitChart() {
+  const rows = filterLast(data.mf_daily, 30).filter(
+    r => r.tdee != null && r.kcal != null
+  );
+  if (!rows.length) return;
+
+  const labels = rows.map(r => r.date.slice(5));
+  const deficits = rows.map(r => Math.round(r.tdee - r.kcal));
+
+  const colors = deficits.map(d => {
+    if (d < 0)    return "#ff5757";   // surplus — red
+    if (d <= 500) return "#57ff8a";   // green
+    if (d <= 800) return "#ffcc44";   // yellow
+    return "#ff5757";                 // >800 — red
+  });
+
+  // Update avg deficit badge
+  const badge = document.getElementById("avg-deficit-badge");
+  if (badge && data.summary.avg_deficit_7d != null) {
+    const avg = data.summary.avg_deficit_7d;
+    badge.textContent = `7d avg: ${avg} kcal`;
+    badge.className = "pill " + (avg >= 500 ? (avg > 800 ? "pill-red" : "pill-yellow") : "pill-green");
+  }
+
+  destroyChart("deficit-chart");
+  const ctx = document.getElementById("deficit-chart").getContext("2d");
+  charts["deficit-chart"] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Deficit",
+          data: deficits,
+          backgroundColor: colors,
+          borderRadius: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` Deficit: ${ctx.parsed.y} kcal`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 10, maxRotation: 0 } },
+        y: { ticks: { callback: v => v + " kcal" } },
+      },
+    },
   });
 }
 
