@@ -73,7 +73,9 @@ function destroyChart(id) {
 
 function makeLineChart(id, labels, datasets, opts = {}, extraPlugins = []) {
   destroyChart(id);
-  const ctx = document.getElementById(id).getContext("2d");
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const ctx = el.getContext("2d");
   charts[id] = new Chart(ctx, {
     type: "line",
     data: { labels, datasets },
@@ -387,7 +389,9 @@ function renderTdeeChart(days) {
   const labels = rows.map(r => r.date.slice(5));
 
   destroyChart("tdee-chart");
-  const ctx = document.getElementById("tdee-chart").getContext("2d");
+  const tdeeEl = document.getElementById("tdee-chart");
+  if (!tdeeEl) return;
+  const ctx = tdeeEl.getContext("2d");
   charts["tdee-chart"] = new Chart(ctx, {
     type: "line",
     data: {
@@ -485,7 +489,9 @@ function renderDeficitChart() {
   }
 
   destroyChart("deficit-chart");
-  const ctx = document.getElementById("deficit-chart").getContext("2d");
+  const defEl = document.getElementById("deficit-chart");
+  if (!defEl) return;
+  const ctx = defEl.getContext("2d");
   charts["deficit-chart"] = new Chart(ctx, {
     type: "bar",
     data: {
@@ -611,7 +617,9 @@ function renderNutrition(days) {
 
   // ── Protein chart ─────────────────────────────────────────────────────────
   destroyChart("nut-protein-chart");
-  const ctx1 = document.getElementById("nut-protein-chart").getContext("2d");
+  const nutProtEl = document.getElementById("nut-protein-chart");
+  if (!nutProtEl) return;
+  const ctx1 = nutProtEl.getContext("2d");
   charts["nut-protein-chart"] = new Chart(ctx1, {
     type: "bar",
     data: {
@@ -653,7 +661,9 @@ function renderNutrition(days) {
 
   // ── Calories chart ────────────────────────────────────────────────────────
   destroyChart("nut-kcal-chart");
-  const ctx2 = document.getElementById("nut-kcal-chart").getContext("2d");
+  const nutKcalEl = document.getElementById("nut-kcal-chart");
+  if (!nutKcalEl) return;
+  const ctx2 = nutKcalEl.getContext("2d");
   charts["nut-kcal-chart"] = new Chart(ctx2, {
     type: "bar",
     data: {
@@ -1278,7 +1288,9 @@ function renderProgressiveOverload(exercise) {
     : null;
 
   destroyChart("po-chart");
-  const ctx = document.getElementById("po-chart").getContext("2d");
+  const poEl = document.getElementById("po-chart");
+  if (!poEl) return;
+  const ctx = poEl.getContext("2d");
   const datasets = [
     {
       label: "e1RM",
@@ -1719,7 +1731,9 @@ function renderTraining() {
   const avgSets = Math.round(sessionSets.reduce((a, v) => a + v, 0) / sessionSets.length);
 
   destroyChart("session-vol-chart");
-  const ctxSV = document.getElementById("session-vol-chart").getContext("2d");
+  const svEl = document.getElementById("session-vol-chart");
+  if (!svEl) return;
+  const ctxSV = svEl.getContext("2d");
   charts["session-vol-chart"] = new Chart(ctxSV, {
     type: "bar",
     data: {
@@ -1997,7 +2011,9 @@ function renderVolume() {
 
   // ── Chart 1: Push vs Pull ────────────────────────────────────────────────
   destroyChart("vol-push-pull-chart");
-  const ctx1 = document.getElementById("vol-push-pull-chart").getContext("2d");
+  const ppEl = document.getElementById("vol-push-pull-chart");
+  if (!ppEl) return;
+  const ctx1 = ppEl.getContext("2d");
   charts["vol-push-pull-chart"] = new Chart(ctx1, {
     type: "bar",
     plugins: [annotateLines([
@@ -2052,7 +2068,9 @@ function renderVolume() {
 
   // ── Chart 2: Upper vs Lower ──────────────────────────────────────────────
   destroyChart("vol-upper-lower-chart");
-  const ctx2 = document.getElementById("vol-upper-lower-chart").getContext("2d");
+  const ulEl = document.getElementById("vol-upper-lower-chart");
+  if (!ulEl) return;
+  const ctx2 = ulEl.getContext("2d");
   charts["vol-upper-lower-chart"] = new Chart(ctx2, {
     type: "bar",
     plugins: [annotateLines([
