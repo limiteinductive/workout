@@ -9,102 +9,156 @@
 </head>
 <body>
   <header>
-    <h1>Workout Dashboard</h1>
-    <p id="last-updated"></p>
+    <div class="header-row">
+      <div>
+        <h1>Workout Dashboard</h1>
+        <p id="last-updated"></p>
+      </div>
+      <div class="view-toggle">
+        <button class="toggle-btn active" data-view="coach">Coach</button>
+        <button class="toggle-btn" data-view="athlete">Athlete</button>
+      </div>
+    </div>
   </header>
 
-  <nav>
-    <button class="tab active" data-tab="overview">Overview</button>
-    <button class="tab" data-tab="workouts">Workouts</button>
-    <button class="tab" data-tab="nutrition">Nutrition</button>
-  </nav>
-
-  <main>
-    <!-- OVERVIEW -->
-    <section id="overview" class="tab-content active">
-      <div class="cards">
-        <div class="card">
-          <div class="card-label">Weight</div>
-          <div class="card-value" id="current-weight">—</div>
-          <div class="card-sub" id="weight-change"></div>
+  <!-- ── COACH VIEW ──────────────────────────────────────────────── -->
+  <div id="view-coach" class="view active">
+    <div id="coach-brief">
+      <!-- Populated by STORY-210 -->
+      <div class="brief-placeholder">
+        <div class="cards">
+          <div class="card">
+            <div class="card-label">Trend Weight</div>
+            <div class="card-value" id="cb-weight">—</div>
+            <div class="card-sub" id="cb-weight-delta"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Lean Mass</div>
+            <div class="card-value" id="cb-lean">—</div>
+            <div class="card-sub" id="cb-lean-trend"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">BF% (estimated)</div>
+            <div class="card-value" id="cb-bf">—</div>
+            <div class="card-sub">YMCA + Deurenberg avg</div>
+          </div>
+          <div class="card">
+            <div class="card-label">FFMI</div>
+            <div class="card-value" id="cb-ffmi">—</div>
+            <div class="card-sub" id="cb-ffmi-ref"></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-label">Body Fat</div>
-          <div class="card-value" id="current-bf">—</div>
-          <div class="card-sub" id="bf-date"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">Today's Calories</div>
-          <div class="card-value" id="today-kcal">—</div>
-          <div class="card-sub" id="today-protein"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">Last Workout</div>
-          <div class="card-value" id="last-workout-title">—</div>
-          <div class="card-sub" id="last-workout-date"></div>
-        </div>
+        <p class="coach-note">Full Coach Brief card — Sprint 4 (STORY-210)</p>
       </div>
+    </div>
+  </div>
 
-      <div class="chart-box">
-        <h2>Weight (last 90 days)</h2>
-        <canvas id="weight-chart-overview"></canvas>
-      </div>
-    </section>
+  <!-- ── ATHLETE VIEW ────────────────────────────────────────────── -->
+  <div id="view-athlete" class="view">
+    <nav>
+      <button class="tab active" data-tab="body-comp">Body Comp</button>
+      <button class="tab" data-tab="volume">Volume</button>
+      <button class="tab" data-tab="training">Training</button>
+      <button class="tab" data-tab="nutrition">Nutrition</button>
+    </nav>
 
-    <!-- WORKOUTS -->
-    <section id="workouts" class="tab-content">
-      <div class="chart-box">
-        <h2>Weight Trend</h2>
-        <div class="range-btns">
-          <button class="range-btn active" data-range="30">30d</button>
-          <button class="range-btn" data-range="90">90d</button>
-          <button class="range-btn" data-range="0">All</button>
+    <main>
+
+      <!-- BODY COMP ──────────────────────────────────────────────── -->
+      <section id="body-comp" class="tab-content active">
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-label">Trend Weight</div>
+            <div class="card-value" id="bc-weight">—</div>
+            <div class="card-sub" id="bc-weight-delta"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Lean Mass</div>
+            <div class="card-value" id="bc-lean">—</div>
+            <div class="card-sub" id="bc-lean-trend"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">BF% (estimated)</div>
+            <div class="card-value" id="bc-bf">—</div>
+            <div class="card-sub">YMCA + Deurenberg avg</div>
+          </div>
+          <div class="card">
+            <div class="card-label">FFMI</div>
+            <div class="card-value" id="bc-ffmi">—</div>
+            <div class="card-sub" id="bc-ffmi-ref"></div>
+          </div>
         </div>
-        <canvas id="weight-chart-full"></canvas>
-      </div>
 
-      <div class="chart-box">
-        <h2>Body Fat %</h2>
-        <canvas id="bf-chart"></canvas>
-      </div>
-
-      <h2 style="margin: 1.5rem 0 0.5rem">Session Log</h2>
-      <div id="workout-list"></div>
-    </section>
-
-    <!-- NUTRITION -->
-    <section id="nutrition" class="tab-content">
-      <div class="cards">
-        <div class="card">
-          <div class="card-label">Calories</div>
-          <div class="card-value" id="n-kcal">—</div>
+        <div class="chart-box">
+          <h2>Weight &amp; Lean Mass (trend)</h2>
+          <div class="range-btns">
+            <button class="range-btn active" data-bc-range="30">30d</button>
+            <button class="range-btn" data-bc-range="60">60d</button>
+            <button class="range-btn" data-bc-range="0">All</button>
+          </div>
+          <canvas id="bc-weight-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent)"></span> Trend weight &nbsp;
+            <span class="legend-dot" style="background:var(--green)"></span> Lean mass
+          </div>
         </div>
-        <div class="card">
-          <div class="card-label">Protein</div>
-          <div class="card-value" id="n-protein">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Carbs</div>
-          <div class="card-value" id="n-carbs">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Fat</div>
-          <div class="card-value" id="n-fat">—</div>
-        </div>
-      </div>
-      <div class="card-sub" id="n-date" style="text-align:center;margin-bottom:1rem"></div>
 
-      <div class="chart-box">
-        <h2>Daily Calories (last 30 days)</h2>
-        <canvas id="kcal-chart"></canvas>
-      </div>
+        <div class="chart-box">
+          <h2>FFMI</h2>
+          <canvas id="bc-ffmi-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent2)"></span> FFMI &nbsp;
+            <span class="ref-line" style="background:#888"></span> 22 avg &nbsp;
+            <span class="ref-line" style="background:#57ff8a"></span> 25 advanced &nbsp;
+            <span class="ref-line" style="background:#e8ff57"></span> 28 elite
+          </div>
+        </div>
 
-      <div class="chart-box">
-        <h2>Daily Protein (last 30 days)</h2>
-        <canvas id="protein-chart"></canvas>
-      </div>
-    </section>
-  </main>
+        <div class="chart-box">
+          <h2>BF% Estimates</h2>
+          <canvas id="bc-bf-chart"></canvas>
+          <div class="chart-legend">
+            <span class="legend-dot" style="background:var(--accent)"></span> YMCA &nbsp;
+            <span class="legend-dot" style="background:var(--accent2)"></span> Deurenberg &nbsp;
+            <span class="legend-dot" style="background:#888"></span> Scale (unreliable)
+          </div>
+        </div>
+
+      </section>
+
+      <!-- VOLUME ─────────────────────────────────────────────────── -->
+      <section id="volume" class="tab-content">
+        <div class="placeholder-section">
+          <div class="placeholder-icon">📊</div>
+          <div class="placeholder-title">Volume Intelligence</div>
+          <div class="placeholder-body">Push / Pull / Upper / Lower indexes, 22-muscle heatmap, balance score</div>
+          <div class="placeholder-sprint">Sprint 3 · STORY-205, 206</div>
+        </div>
+      </section>
+
+      <!-- TRAINING ───────────────────────────────────────────────── -->
+      <section id="training" class="tab-content">
+        <div class="placeholder-section">
+          <div class="placeholder-icon">🏋️</div>
+          <div class="placeholder-title">Progressive Overload</div>
+          <div class="placeholder-body">Per-exercise weight trends, PRs, stalls, RIR, volume spikes, cardio</div>
+          <div class="placeholder-sprint">Sprint 3–4 · STORY-207, 208</div>
+        </div>
+      </section>
+
+      <!-- NUTRITION ──────────────────────────────────────────────── -->
+      <section id="nutrition" class="tab-content">
+        <div class="placeholder-section">
+          <div class="placeholder-icon">🥗</div>
+          <div class="placeholder-title">Nutrition Adherence</div>
+          <div class="placeholder-body">Protein &amp; calorie adherence vs MF targets, TDEE, energy balance</div>
+          <div class="placeholder-sprint">Sprint 4 · STORY-204, 209</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
 
   <script src="app.js"></script>
 </body>

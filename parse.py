@@ -318,6 +318,76 @@ def ensure_config() -> dict:
 
 # ── Merge & output ────────────────────────────────────────────────────────────
 
+def compute_body_comp(weight_series: list, config: dict) -> list:
+    """
+    Compute BF% estimates (YMCA + Deurenberg), lean mass, FFMI
+    for each weight entry that has a trend_kg value.
+    Uses fixed waist measurement from config (athlete["waist_cm"]).
+    """
+    athlete = config["athlete"]
+    age = athlete["age"]
+    height_m = athlete["height_cm"] / 100.0
+    waist_in = athlete["waist_cm"] / 2.54
+
+    result = []
+    for entry in weight_series:
+        trend_kg = entry.get("trend_kg")
+        if trend_kg is None:
+            continue
+
+        weight_lb = trend_kg * 2.20462
+
+        # YMCA formula (male): bf% = ((-98.42 + 4.15*waist_in - 0.082*weight_lb) / weight_lb) * 100
+        ymca_bf = ((-98.42 + 4.15 * waist_in - 0.082 * weight_lb) / weight_lb) * 100
+
+        # Deurenberg formula: bf% = (1.20*BMI) + (0.23*age) - 10.8 - 5.4
+        bmi = trend_kg / (height_m ** 2)
+        deur_bf = (1.20 * bmi) + (0.23 * age) - 10.8 - 5.4
+
+        avg_bf = (ymca_bf + deur_bf) / 2.0
+        lean_kg = trend_kg * (1.0 - avg_bf / 100.0)
+        ffmi = lean_kg / (height_m ** 2)
+
+        result.append({
+            "date": entry["date"],
+            "trend_kg": round(trend_kg, 2),
+            "ymca_bf_pct": round(ymca_bf, 1),
+            "deurenberg_bf_pct": round(deur_bf, 1),
+            "estimated_bf_pct": round(avg_bf, 1),
+            "lean_kg": round(lean_kg, 1),
+            "ffmi": round(ffmi, 2),
+        })
+
+    return result
+
+
+def compute_summary(body_comp: list) -> dict:
+    """Pre-compute latest values for the Coach Brief card."""
+    if not body_comp:
+        return {}
+
+    latest = body_comp[-1]
+
+    # 7-day weight delta
+    weight_delta_7d = None
+    lean_trend = "→"
+    if len(body_comp) >= 7:
+        week_ago = body_comp[-7]
+        weight_delta_7d = round(latest["trend_kg"] - week_ago["trend_kg"], 2)
+        lean_delta = latest["lean_kg"] - week_ago["lean_kg"]
+        lean_trend = "↑" if lean_delta > 0.3 else ("↓" if lean_delta < -0.3 else "→")
+
+    return {
+        "latest_date": latest["date"],
+        "trend_kg": latest["trend_kg"],
+        "weight_delta_7d": weight_delta_7d,
+        "estimated_bf_pct": latest["estimated_bf_pct"],
+        "lean_kg": latest["lean_kg"],
+        "lean_trend": lean_trend,
+        "ffmi": latest["ffmi"],
+    }
+
+
 def build_weight_series(mf_daily: dict, hc_weight: list) -> list:
     """
     Unified weight series: MF trend weight preferred; HC raw weight as fallback.
@@ -341,14 +411,18 @@ def build_weight_series(mf_daily: dict, hc_weight: list) -> list:
 
 def build_output(mf: dict, hc: dict, config: dict) -> dict:
     mf_daily = mf["daily"]
+    weight_series = build_weight_series(mf_daily, hc["hc_weight"])
+    body_comp = compute_body_comp(weight_series, config)
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "config": config,
+        "summary": compute_summary(body_comp),
         "mf_daily": [mf_daily[d] for d in sorted(mf_daily)],
         "muscle_sets": [mf["muscle_sets"][d] for d in sorted(mf["muscle_sets"])],
         "muscle_volume": [mf["muscle_volume"][d] for d in sorted(mf["muscle_volume"])],
         "workouts": [mf["workouts"][d] for d in sorted(mf["workouts"])],
-        "weight": build_weight_series(mf_daily, hc["hc_weight"]),
+        "weight": weight_series,
+        "body_comp": body_comp,
         "hc_body_fat": hc["hc_body_fat"],
         "cardio": hc["cardio"],
     }
@@ -380,14 +454,23 @@ def main():
         json.dump(data, f, separators=(",", ":"))
 
     size_kb = OUT_PATH.stat().st_size / 1024
+    s = data.get("summary", {})
     print(f"\n✓ {OUT_PATH}  ({size_kb:.1f} KB)")
     print(f"  mf_daily       : {len(data['mf_daily'])} days")
     print(f"  muscle_sets    : {len(data['muscle_sets'])} days")
     print(f"  muscle_volume  : {len(data['muscle_volume'])} days")
     print(f"  workouts       : {len(data['workouts'])} days")
+    print(f"  body_comp      : {len(data['body_comp'])} entries")
     print(f"  weight         : {len(data['weight'])} entries")
     print(f"  hc_body_fat    : {len(data['hc_body_fat'])} entries")
     print(f"  cardio         : {len(data['cardio'])} sessions")
+    if s:
+        delta = f"{s['weight_delta_7d']:+.2f}" if s.get("weight_delta_7d") is not None else "n/a"
+        print(f"\n  Latest ({s['latest_date']}):")
+        print(f"    trend weight : {s['trend_kg']} kg  (7d Δ {delta} kg)")
+        print(f"    lean mass    : {s['lean_kg']} kg  {s['lean_trend']}")
+        print(f"    BF% (est)    : {s['estimated_bf_pct']}%")
+        print(f"    FFMI         : {s['ffmi']}")
 
 
 if __name__ == "__main__":
