@@ -123,25 +123,37 @@
       <section id="strength" class="tab-content">
 
         <div class="cards">
-          <div class="card">
-            <div class="card-label" data-tip="Best estimated 1RM for push exercises (bench, incline, shoulder press, dips) — last 30 days vs prior period.">Push e1RM</div>
-            <div class="card-value" id="str-push-val">—</div>
-            <div class="card-sub" id="str-push-sub"></div>
+          <div class="card card-spark">
+            <div class="spark-header">
+              <span class="card-label" data-tip="Best estimated 1RM for push exercises (bench, incline, shoulder press, dips) — weekly trend.">Push e1RM</span>
+              <span class="spark-delta" id="str-push-delta"></span>
+            </div>
+            <div class="spark-value" id="str-push-val">—</div>
+            <canvas id="str-push-spark" height="50"></canvas>
           </div>
-          <div class="card">
-            <div class="card-label" data-tip="Best estimated 1RM for pull exercises (lat pulldown, pull-ups) — last 30 days vs prior period.">Pull e1RM</div>
-            <div class="card-value" id="str-pull-val">—</div>
-            <div class="card-sub" id="str-pull-sub"></div>
+          <div class="card card-spark">
+            <div class="spark-header">
+              <span class="card-label" data-tip="Best estimated 1RM for pull exercises (lat pulldown, pull-ups) — weekly trend.">Pull e1RM</span>
+              <span class="spark-delta" id="str-pull-delta"></span>
+            </div>
+            <div class="spark-value" id="str-pull-val">—</div>
+            <canvas id="str-pull-spark" height="50"></canvas>
           </div>
-          <div class="card">
-            <div class="card-label" data-tip="Best estimated 1RM for lower body (Romanian deadlift, squat) — last 30 days vs prior period.">Lower e1RM</div>
-            <div class="card-value" id="str-lower-val">—</div>
-            <div class="card-sub" id="str-lower-sub"></div>
+          <div class="card card-spark">
+            <div class="spark-header">
+              <span class="card-label" data-tip="Best estimated 1RM for lower body (Romanian deadlift, squat) — weekly trend.">Lower e1RM</span>
+              <span class="spark-delta" id="str-lower-delta"></span>
+            </div>
+            <div class="spark-value" id="str-lower-val">—</div>
+            <canvas id="str-lower-spark" height="50"></canvas>
           </div>
-          <div class="card">
-            <div class="card-label" data-tip="Sum of best Push + Pull + Lower e1RM — composite strength index vs prior period.">Strength Score</div>
-            <div class="card-value" id="str-total-val">—</div>
-            <div class="card-sub" id="str-total-sub"></div>
+          <div class="card card-spark">
+            <div class="spark-header">
+              <span class="card-label" data-tip="Sum of best Push + Pull + Lower e1RM — composite strength index, weekly trend.">Strength Score</span>
+              <span class="spark-delta" id="str-total-delta"></span>
+            </div>
+            <div class="spark-value" id="str-total-val">—</div>
+            <canvas id="str-total-spark" height="50"></canvas>
           </div>
         </div>
 

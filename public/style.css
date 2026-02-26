@@ -179,6 +179,13 @@ main {
   letter-spacing: -0.3px;
 }
 
+/* Sparkline cards */
+.card-spark { padding-bottom: 0.5rem; }
+.card-spark canvas { display: block; margin-top: 0.25rem; max-height: 50px; }
+.spark-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.1rem; }
+.spark-value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; line-height: 1.1; margin: 0.1rem 0; }
+.spark-delta { font-family: var(--font-mono); font-size: 0.65rem; white-space: nowrap; }
+
 /* Mini fill bar inside volume cards */
 .card-bar {
   height: 3px;

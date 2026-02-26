@@ -1647,7 +1647,7 @@ function renderHeatmap() {
 
 // ── Strength tab ──────────────────────────────────────────────────────────────
 
-function computeStrengthCards() {
+function computeStrengthSeries() {
   if (!_exMap) return null;
 
   const catPatterns = {
@@ -1656,96 +1656,204 @@ function computeStrengthCards() {
     lower: ["deadlift", "squat", "hip thrust"],
   };
 
-  const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
-  const cutoff90 = new Date(); cutoff90.setDate(cutoff90.getDate() - 90);
-  const str30 = cutoff30.toISOString().slice(0, 10);
-  const str90 = cutoff90.toISOString().slice(0, 10);
+  // Helper: ISO week key from date string "YYYY-MM-DD"
+  function weekKey(dateStr) {
+    const d = new Date(dateStr + "T00:00:00");
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
+    return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  }
 
-  const cards = {};
+  // Helper: short label from week key "2025-W03" → "Jan 20"
+  function weekLabel(wk) {
+    const [yr, wStr] = wk.split("-W");
+    const jan1 = new Date(Date.UTC(+yr, 0, 1));
+    const dayOfWeek = jan1.getUTCDay() || 7;
+    const mon = new Date(jan1.getTime() + ((+wStr - 1) * 7 + (1 - dayOfWeek)) * 86400000);
+    return mon.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  }
+
+  // Collect all weeks across all categories for alignment
+  const allWeeks = new Set();
+  const catWeekly = {};
 
   for (const [cat, patterns] of Object.entries(catPatterns)) {
-    let recentBest = null, prevBest = null;
-
+    const weekBest = {};
     for (const [ex, entries] of Object.entries(_exMap)) {
       const exLower = ex.toLowerCase();
       if (!patterns.some(p => exLower.includes(p))) continue;
       const c = _exCred[ex];
       const oFlags = c ? c.outliers : entries.map(() => false);
       for (let i = 0; i < entries.length; i++) {
-        if (oFlags[i]) continue; // skip outliers
+        if (oFlags[i]) continue;
         const e = entries[i];
-        if (e.date >= str30) {
-          if (!recentBest || e.e1rm > recentBest.val) {
-            recentBest = { val: e.e1rm, ex };
-          }
-        } else if (e.date >= str90) {
-          if (!prevBest || e.e1rm > prevBest.val) {
-            prevBest = { val: e.e1rm };
-          }
-        }
+        const wk = weekKey(e.date);
+        allWeeks.add(wk);
+        if (!weekBest[wk] || e.e1rm > weekBest[wk]) weekBest[wk] = e.e1rm;
+      }
+    }
+    catWeekly[cat] = weekBest;
+  }
+
+  const sortedWeeks = [...allWeeks].sort();
+  if (!sortedWeeks.length) return null;
+
+  const series = {};
+
+  for (const cat of Object.keys(catPatterns)) {
+    const wb = catWeekly[cat];
+    const values = [];
+    const labels = [];
+    let lastVal = null;
+    for (const wk of sortedWeeks) {
+      if (wb[wk] != null) {
+        lastVal = Math.round(wb[wk]);
+        values.push(lastVal);
+        labels.push(weekLabel(wk));
+      } else if (lastVal != null) {
+        values.push(lastVal); // carry forward
+        labels.push(weekLabel(wk));
       }
     }
 
-    const delta = recentBest && prevBest
-      ? round1(recentBest.val - prevBest.val)
-      : null;
-    const pct = recentBest && prevBest
-      ? round1((recentBest.val - prevBest.val) / prevBest.val * 100)
-      : null;
+    const current = values.length ? values[values.length - 1] : null;
+    // Delta: compare last 4 weeks vs 4 weeks before that
+    const recent = values.length >= 2 ? values[values.length - 1] : null;
+    const prev = values.length >= 5 ? values[values.length - 5] : (values.length >= 2 ? values[0] : null);
+    const delta = recent != null && prev != null ? round1(recent - prev) : null;
+    const pct = delta != null && prev ? round1(delta / prev * 100) : null;
 
-    cards[cat] = {
-      current: recentBest ? Math.round(recentBest.val) : null,
-      bestEx: recentBest?.ex || null,
-      delta,
-      pct,
-    };
+    series[cat] = { labels, values, current, delta, pct };
   }
 
-  // Composite score = sum of best push + pull + lower
-  const push = cards.push?.current || 0;
-  const pull = cards.pull?.current || 0;
-  const lower = cards.lower?.current || 0;
-  const pushPrev = (cards.push?.current || 0) - (cards.push?.delta || 0);
-  const pullPrev = (cards.pull?.current || 0) - (cards.pull?.delta || 0);
-  const lowerPrev = (cards.lower?.current || 0) - (cards.lower?.delta || 0);
-  const totalCurrent = push + pull + lower;
-  const totalPrev = pushPrev + pullPrev + lowerPrev;
-  const totalDelta = totalCurrent && totalPrev ? Math.round(totalCurrent - totalPrev) : null;
-  const totalPct  = totalCurrent && totalPrev ? round1((totalCurrent - totalPrev) / totalPrev * 100) : null;
+  // Total: sum of push+pull+lower per week (only where all three have data)
+  const totalLabels = [];
+  const totalValues = [];
+  const pLen = series.push.values.length;
+  const plLen = series.pull.values.length;
+  const lLen = series.lower.values.length;
+  const maxLen = Math.max(pLen, plLen, lLen);
+  for (let i = 0; i < maxLen; i++) {
+    const p = i < pLen ? series.push.values[i] : 0;
+    const pl = i < plLen ? series.pull.values[i] : 0;
+    const l = i < lLen ? series.lower.values[i] : 0;
+    totalValues.push(p + pl + l);
+    // Use push labels as reference (most likely longest)
+    totalLabels.push(i < series.push.labels.length ? series.push.labels[i] : "");
+  }
+  const totalCurrent = totalValues.length ? totalValues[totalValues.length - 1] : null;
+  const totalRecent = totalValues.length >= 2 ? totalValues[totalValues.length - 1] : null;
+  const totalPrev = totalValues.length >= 5 ? totalValues[totalValues.length - 5] : (totalValues.length >= 2 ? totalValues[0] : null);
+  const totalDelta = totalRecent != null && totalPrev != null ? Math.round(totalRecent - totalPrev) : null;
+  const totalPct = totalDelta != null && totalPrev ? round1(totalDelta / totalPrev * 100) : null;
+  series.total = { labels: totalLabels, values: totalValues, current: totalCurrent, delta: totalDelta, pct: totalPct };
 
-  cards.total = { current: totalCurrent || null, delta: totalDelta, pct: totalPct };
+  return series;
+}
 
-  return cards;
+function renderStrengthSparkline(canvasId, series) {
+  destroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if (!el || !series.values.length) return;
+
+  const trend = bayesianTrend(series.values);
+  const datasets = [{
+    data: series.values,
+    borderColor: ACCENT,
+    backgroundColor: "rgba(232, 255, 87, 0.08)",
+    fill: true,
+    tension: 0.3,
+    borderWidth: 1.5,
+    pointRadius: series.values.map((_, i) => i === series.values.length - 1 ? 3 : 0),
+    pointBackgroundColor: ACCENT,
+    pointBorderWidth: 0,
+  }];
+
+  if (trend.trendLine) {
+    const trendData = new Array(series.values.length).fill(null);
+    trendData[0] = trend.trendLine[0];
+    trendData[trendData.length - 1] = trend.trendLine[1];
+    datasets.push({
+      data: trendData,
+      borderColor: "rgba(255,255,255,0.2)",
+      borderDash: [4, 3],
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+      tension: 0,
+      spanGaps: true,
+    });
+  }
+
+  charts[canvasId] = new Chart(el.getContext("2d"), {
+    type: "line",
+    data: { labels: series.labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { left: 0, right: 0, top: 2, bottom: 0 } },
+      scales: {
+        x: { display: false },
+        y: {
+          display: false,
+          beginAtZero: false,
+          grace: "10%",
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          intersect: false,
+          mode: "index",
+          filter: (item) => item.datasetIndex === 0,
+          callbacks: {
+            title: (items) => items[0]?.label || "",
+            label: (item) => `${item.raw} kg`,
+          },
+          displayColors: false,
+          titleFont: { size: 10 },
+          bodyFont: { size: 11, weight: "bold" },
+          padding: 6,
+        },
+      },
+      interaction: { intersect: false, mode: "index" },
+      animation: { duration: 400 },
+    },
+  });
 }
 
 function renderStrengthTab() {
   buildExMap();
-  const cards = computeStrengthCards();
-  if (!cards) return;
+  const series = computeStrengthSeries();
+  if (!series) return;
 
-  function setStrCard(valId, subId, data, unit = " kg") {
+  function setSparkCard(valId, deltaId, sparkId, s, unit = " kg") {
     const valEl = document.getElementById(valId);
-    const subEl = document.getElementById(subId);
-    if (!valEl || !subEl) return;
-    if (data.current) {
-      valEl.textContent = data.current + unit;
-      if (data.delta !== null) {
-        const sign = data.delta > 0 ? "+" : "";
-        const cls = data.delta > 0 ? "trend-good" : data.delta < 0 ? "trend-bad" : "trend-neutral";
-        subEl.innerHTML = `<span class="${cls}">${sign}${data.delta} kg (${sign}${data.pct}%)</span> vs prev 60d`;
-      } else {
-        subEl.textContent = "no prior data";
+    const deltaEl = document.getElementById(deltaId);
+    if (!valEl) return;
+    if (s.current != null) {
+      valEl.textContent = s.current + unit;
+      if (deltaEl && s.delta != null) {
+        const sign = s.delta > 0 ? "+" : "";
+        const cls = s.delta > 0 ? "trend-good" : s.delta < 0 ? "trend-bad" : "trend-neutral";
+        deltaEl.innerHTML = `<span class="${cls}">${sign}${s.delta} kg · ${sign}${s.pct}%</span>`;
+      } else if (deltaEl) {
+        deltaEl.textContent = "";
       }
+      renderStrengthSparkline(sparkId, s);
     } else {
       valEl.textContent = "—";
-      subEl.textContent = "no data";
+      if (deltaEl) deltaEl.textContent = "";
     }
   }
 
-  setStrCard("str-push-val",  "str-push-sub",  cards.push);
-  setStrCard("str-pull-val",  "str-pull-sub",  cards.pull);
-  setStrCard("str-lower-val", "str-lower-sub", cards.lower);
-  setStrCard("str-total-val", "str-total-sub", cards.total);
+  setSparkCard("str-push-val",  "str-push-delta",  "str-push-spark",  series.push);
+  setSparkCard("str-pull-val",  "str-pull-delta",  "str-pull-spark",  series.pull);
+  setSparkCard("str-lower-val", "str-lower-delta", "str-lower-spark", series.lower);
+  setSparkCard("str-total-val", "str-total-delta", "str-total-spark", series.total);
 
   // Strength standards uses allTimePR — rendered after renderTraining populates _allTimePR
   // Called again after renderTraining() in loadData, so this is safe.
